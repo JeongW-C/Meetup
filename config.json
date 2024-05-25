@@ -1,0 +1,9 @@
+{
+    "access_key": "---",
+    "secret_key": "---",
+    "check_interval": 60,
+    "cash_ratio_threshold": 30.0,
+    "buy_percentage": 10.0,
+    "price_increase_threshold": 3.0,
+    "sell_percentage": 50.0
+}
