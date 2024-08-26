@@ -27,9 +27,6 @@ def split_sequence(sequence, step):
 train_x, train_y = split_sequence(train_y, step=n_timesteps)
 train_X = train_x.reshape(train_x.shape[0], train_x.shape[1], n_features)
 
-print("shape x:{} / y:{}".format(train_x.shape, train_y.shape))
-input()
-
 model = Sequential()
 model.add(SimpleRNN(units=10,
                     return_sequences=False,
@@ -59,7 +56,6 @@ for i in range(len(test_x) - n_timesteps):
     net_input = test_y[i:i+n_timesteps]
     net_input = net_input.reshape(1, n_timesteps, n_features)
     train_y = model.predict(net_input, verbose=0)
-    print(test_y.shape, train_y.shape, i, i+n_timesteps)
     test_y = np.append(test_y, train_y)
 
 plt.plot(test_x, calc_y, label="truth", color="orange")

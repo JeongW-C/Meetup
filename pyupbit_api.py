@@ -31,6 +31,10 @@ class PyUpbitAPI:
     def buy_limit_order(self, coin, price, amount):
         """Buy a specific amount of a coin at a limit price."""
         return self.upbit.buy_limit_order(coin, price, amount)
+    
+    def get_ohlcv(self, coin, interval, start_time, end_time):
+        df = pyupbit.get_ohlcv(coin, interval=interval, to=end_time.strftime("%Y-%m-%d %H:%M:%s"))
+        return df[df.index >= start_time]
 
 # Example usage
 if __name__ == "__main__":

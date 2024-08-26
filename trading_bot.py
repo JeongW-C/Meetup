@@ -1,6 +1,12 @@
 import time
 import json
 from asset_calculator import AssetCalculator
+import numpy as np
+from keras.api.saving import load_model
+from datetime import datetime, timedelta
+
+n_timesteps = 12
+n_features = 4
 
 class TradingBot:
     def __init__(self, calculator, config):
@@ -15,6 +21,13 @@ class TradingBot:
             except Exception as e:
                 print(f"An error occurred: {e}")
                 time.sleep(self.config['check_interval'])
+
+    # 벡터 데이터를 시퀀셜하게 n개씩 묶어 X 데이터셋 생성
+    def create_dataset(self, vectors, n):
+        X = []
+        for i in range(len(vectors) - n):
+            X.append(vectors[i:i+n])
+        return np.array(X)
 
     def check_and_trade(self):
         cash_balance = self.calculator.get_balance()
@@ -46,6 +59,37 @@ class TradingBot:
         if current_price >= avg_buy_price * (1 + self.config['price_increase_threshold'] / 100.0):
             amount_to_sell = coin_balance * (self.config['sell_percentage'] / 100.0)
             #sell_result = self.calculator.sell_market_order(coin, amount_to_sell)
+            sell_result = self.calculator.sell_market_order(coin, 0.0001)
+            print(f"Market Sell Result: {sell_result}")
+
+        # Load model
+        model = load_model('trade_model.keras')
+        model.summary()
+
+        # 1시간 5분봉 데이터 추출
+        start_time = datetime.now
+        end_time = start_time + timedelta(hours=1)
+        df = self.calculator.get_ohlcv('KRW-XRP', 'minute5', start_time, end_time)
+        df = df[df.index >= start_time]
+
+        # 데이터 정규화
+        mean_close = np.mean(df['close'].values)
+        df_normal = df/mean_close
+        
+        # 데이터 벡터화
+        vectors = df_normal[['open', 'high', 'low', 'close']].values
+
+        test_x = self.create_dataset(vectors, n_timesteps)
+        net_input = test_x[0].reshape(1, n_timesteps, n_features)
+        predict = model.predict(net_input, verbose=0)
+
+        if predict > 1.1:
+            amount_to_spend = cash_balance * (self.config['buy_percentage'] / 100.0)
+            amount_to_buy = amount_to_spend / current_price
+            buy_result = self.calculator.buy_limit_order(coin, current_price, 0.0001)
+            print(f"Limit Buy Result: {buy_result}")
+        elif predict < 0.9:
+            amount_to_sell = coin_balance * (self.config['sell_percentage'] / 100.0)
             sell_result = self.calculator.sell_market_order(coin, 0.0001)
             print(f"Market Sell Result: {sell_result}")
 

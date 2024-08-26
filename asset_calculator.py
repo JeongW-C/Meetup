@@ -55,3 +55,6 @@ class AssetCalculator:
     def buy_limit_order(self, coin, price, amount):
         """Buy a specific amount of a coin at a limit price."""
         return self.api.buy_limit_order(coin, price, amount)
+
+    def get_ohlcv(self, coin, interval, start_time, end_time):
+        return self.api.get_ohlcv(self, coin, interval, start_time, end_time)

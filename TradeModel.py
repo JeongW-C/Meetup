@@ -12,19 +12,20 @@ import os
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 n_timesteps = 12
-n_features = 5
+n_features = 4
 
-# 특정일 지정
-specific_date = "2024-08-10"
-start_time = datetime.strptime(specific_date, "%Y-%m-%d")
-end_time = start_time + timedelta(days=7)
+def read_candles_from_file(filename):
+    df = pd.read_csv(filename, index_col=0, parse_dates=True)
+    return df
 
-# 5분봉 데이터 추출
-df = pyupbit.get_ohlcv("KRW-XRP", interval="minute5", to=end_time.strftime("%Y-%m-%d %H:%M:%S"))
-df = df[df.index >= start_time]
+df = read_candles_from_file('xrp_5min_2024-07-28.csv')
+
+# 데이터 정규화
+mean_close = np.mean(df['close'].values)
+df_normal = df/mean_close
 
 # 데이터 벡터화
-vectors = df[['open', 'high', 'low', 'close', 'volume']].values
+vectors = df_normal[['open', 'high', 'low', 'close']].values
 
 # 벡터 데이터를 시퀀셜하게 n개씩 묶어 X 데이터셋 생성
 def create_dataset(vectors, n):
@@ -53,7 +54,8 @@ print(f"X shape: {X.shape}")
 print(f"Y shape: {Y.shape}")
 
 model = Sequential()
-model.add(LSTM(units=10,
+model.add(LSTM(units=13,
+               activation='tanh',
                return_sequences=False,
                input_shape=(n_timesteps, n_features)))
 model.add(Dense(1))
@@ -72,53 +74,4 @@ plt.plot(history.history['loss'], label='loss')
 plt.legend(loc='upper right')
 plt.show()
 
-#model.save('lstm_model.keras')
-
-
-
-
-################## Test
-
-# 특정일 지정
-specific_date = "2024-08-20"
-start_time = datetime.strptime(specific_date, "%Y-%m-%d")
-end_time = start_time + timedelta(days=7)
-
-# 5분봉 데이터 추출
-df = pyupbit.get_ohlcv("KRW-XRP", interval="minute5", to=end_time.strftime("%Y-%m-%d %H:%M:%S"))
-df = df[df.index >= start_time]
-
-# 데이터 벡터화
-vectors = df[['open', 'high', 'low', 'close', 'volume']].values
-
-test_x = create_dataset(vectors, n_timesteps)
-Y = []
-for i in range(len(X)):
-    open_price = X[i][0][0]
-    if i + n_timesteps < len(vectors):
-        close_price = vectors[i + n_timesteps][3]
-    else:
-        close_price = vectors[-1][3]  # 범위를 벗어나는 경우 마지막 close 값을 사용
-    ratio = close_price / open_price
-    Y.append(ratio)
-
-calc_y = np.array(Y)
-
-Y = []
-for i in range(len(test_x)):
-    net_input = test_x[i]
-    net_input = net_input.reshape(1, n_timesteps, n_features)
-    predict = model.predict(net_input, verbose=0)
-    print(net_input, predict)
-    Y.append(predict)
-
-test_y = np.array(Y)
-
-print(test_y)
-print(test_y.shape)
-
-plt.plot(test_x, calc_y, label="truth", color="orange")
-plt.plot(test_x, test_y, label="predict", color="blue")
-
-plt.legend(loc='upper left')
-plt.show()
+model.save('trade_model.keras')
