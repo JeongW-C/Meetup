@@ -33,10 +33,8 @@ GitHub Actions(`ebook-reader APK` 워크플로)가 빌드한 `ebook-reader-apk` 
 
 ## 지인에게 공유하기
 
-1. **GitHub Release 링크 (추천)**: 태그를 올리면 Release 페이지에 APK가 자동으로 올라갑니다.
-   ```bash
-   git tag ebook-reader-v1.0 && git push origin ebook-reader-v1.0
-   ```
+1. **GitHub Release 링크 (추천)**: 앱 코드가 바뀌어 올라가면 `ebook-reader release` 워크플로가 Release 페이지에 APK를 자동으로 올립니다
+   (버전 이름은 `app/build.gradle.kts`의 `versionName`).
    지인에게 `https://github.com/JeongW-C/Meetup/releases/latest` 링크를 보내면, 폰 브라우저에서 `ebook-reader.apk`를 눌러 받고 설치할 수 있습니다.
    (Actions 아티팩트는 GitHub 로그인이 필요하고 zip으로 받아져서 지인 공유에는 불편합니다.)
 2. **APK 파일 직접 전달**: `ebook-reader.apk` 파일을 카카오톡·구글 드라이브·이메일로 보내도 됩니다.
