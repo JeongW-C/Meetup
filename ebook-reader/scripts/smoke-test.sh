@@ -29,6 +29,8 @@ for f in ebook-reader/samples/*; do
   adb shell run-as $PKG cp "/data/local/tmp/$name" "files/$name"
 
   adb shell am force-stop $PKG
+  # 앞 파일에서 바꾼 글자 크기가 남지 않도록 설정 초기화
+  adb shell run-as $PKG rm -f shared_prefs/reader.xml
   adb logcat -c
   adb shell am start -W -a android.intent.action.VIEW \
     -d "file:///data/user/0/$PKG/files/$name" -t text/plain -n $PKG/.MainActivity

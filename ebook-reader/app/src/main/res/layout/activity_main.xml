@@ -54,9 +54,11 @@
         android:paddingEnd="16dp"
         android:paddingBottom="8dp">
 
+        <!-- 포커스를 받으면 키보드 +/- 와 방향키를 슬라이더가 가로채므로 터치로만 쓴다 -->
         <SeekBar
             android:id="@+id/seekBar"
             android:layout_width="0dp"
+            android:focusable="false"
             android:layout_height="wrap_content"
             android:layout_weight="1" />
 
