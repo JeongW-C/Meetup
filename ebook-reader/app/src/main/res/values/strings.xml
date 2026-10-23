@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">이북리더</string>
+    <string name="open_file">파일 열기</string>
+    <string name="font_smaller">가−</string>
+    <string name="font_larger">가+</string>
+    <string name="empty_hint">오른쪽 위의 열기 버튼을 눌러\n.txt 또는 .md 파일을 열어주세요.\n\n화면 왼쪽/오른쪽을 탭하거나 넘기면 페이지가 바뀌고,\n가운데를 탭하면 메뉴가 숨겨집니다.</string>
+    <string name="font_size_toast">글자 크기 %1$d</string>
+    <string name="open_failed">파일을 열 수 없습니다</string>
+    <string name="page_indicator">%1$d / %2$d</string>
+</resources>
