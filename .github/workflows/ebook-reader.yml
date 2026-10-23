@@ -59,6 +59,15 @@ jobs:
           target: google_apis
           disable-animations: true
           script: bash ebook-reader/scripts/smoke-test.sh app-debug.apk screenshots
+      # 아티팩트를 내려받을 수 없는 환경에서도 확인할 수 있게 스크린샷을 로그에 남긴다
+      - name: Print screenshots as base64
+        if: always()
+        run: |
+          for f in screenshots/*.png; do
+            echo "=== BEGIN $f"
+            base64 -w 0 "$f"; echo
+            echo "=== END $f"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:

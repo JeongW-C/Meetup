@@ -122,12 +122,17 @@ class MainActivity : AppCompatActivity() {
         else -> super.onOptionsItemSelected(item)
     }
 
-    /** 볼륨 키로도 페이지를 넘길 수 있다 */
+    /** 볼륨 키·키보드로도 페이지를 넘기고, 키보드 +/- 로 글자 크기를 바꿀 수 있다 */
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (text != null) {
             when (keyCode) {
-                KeyEvent.KEYCODE_VOLUME_DOWN -> { nextPage(); return true }
-                KeyEvent.KEYCODE_VOLUME_UP -> { prevPage(); return true }
+                KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_PAGE_DOWN,
+                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_SPACE -> { nextPage(); return true }
+                KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_PAGE_UP,
+                KeyEvent.KEYCODE_DPAD_LEFT -> { prevPage(); return true }
+                KeyEvent.KEYCODE_PLUS, KeyEvent.KEYCODE_EQUALS,
+                KeyEvent.KEYCODE_NUMPAD_ADD -> { changeFontSize(FONT_STEP_SP); return true }
+                KeyEvent.KEYCODE_MINUS, KeyEvent.KEYCODE_NUMPAD_SUBTRACT -> { changeFontSize(-FONT_STEP_SP); return true }
             }
         }
         return super.onKeyDown(keyCode, event)
