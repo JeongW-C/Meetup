@@ -28,8 +28,26 @@
 ## 빌드 / 설치
 
 ### APK 바로 받기
-GitHub Actions(`ebook-reader APK` 워크플로)가 빌드한 `ebook-reader-debug-apk` 아티팩트를 내려받아 폰에 설치하면 됩니다.
+GitHub Actions(`ebook-reader APK` 워크플로)가 빌드한 `ebook-reader-apk` 아티팩트를 내려받아 폰에 설치하면 됩니다.
 (설치 시 "출처를 알 수 없는 앱" 허용 필요)
+
+## 지인에게 공유하기
+
+1. **GitHub Release 링크 (추천)**: 태그를 올리면 Release 페이지에 APK가 자동으로 올라갑니다.
+   ```bash
+   git tag ebook-reader-v1.0 && git push origin ebook-reader-v1.0
+   ```
+   지인에게 `https://github.com/JeongW-C/Meetup/releases/latest` 링크를 보내면, 폰 브라우저에서 `ebook-reader.apk`를 눌러 받고 설치할 수 있습니다.
+   (Actions 아티팩트는 GitHub 로그인이 필요하고 zip으로 받아져서 지인 공유에는 불편합니다.)
+2. **APK 파일 직접 전달**: `ebook-reader.apk` 파일을 카카오톡·구글 드라이브·이메일로 보내도 됩니다.
+3. **설치하는 쪽에서 할 일**: 받은 APK를 열면 "출처를 알 수 없는 앱 설치" 허용을 묻습니다. 카카오톡/크롬/파일 앱 등 APK를 연 앱에 허용을 켜고 설치하면 됩니다.
+   Play 프로텍트가 "확인되지 않은 앱" 경고를 띄우면 "무시하고 설치"를 누르세요.
+4. **업데이트**: 모든 빌드가 저장소의 `demo.keystore`로 같은 서명을 하므로, 새 APK를 받아 설치하면 기존 앱 위에 그대로 업데이트됩니다.
+5. 더 많은 사람에게 배포하려면 Google Play 내부 테스트(개발자 계정 25달러)나 Firebase App Distribution을 쓰면 됩니다. 이때는 데모 키 대신 비공개 서명 키를 쓰세요.
+
+## 에뮬레이터 자동 테스트
+`ebook-reader APK` 워크플로의 `smoke-test` 작업이 에뮬레이터에서 `samples/` 의 파일을 하나씩 열고,
+페이지 넘기기·글자 크기 변경 후 화면을 캡처해 `ebook-reader-screenshots` 아티팩트로 올립니다.
 
 ### 직접 빌드
 Android Studio에서 `ebook-reader/` 폴더를 열고 실행하거나, 터미널에서:

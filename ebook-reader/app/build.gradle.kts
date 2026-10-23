@@ -15,8 +15,24 @@ android {
         versionName = "1.0"
     }
 
+    // 데모용 서명 키. 저장소에 함께 올려서 누가 빌드해도 같은 서명이 되게 한다
+    // (그래야 새 버전 APK를 기존 앱 위에 덮어서 설치할 수 있다).
+    // Play 스토어에 올릴 때는 비공개 키로 바꿔야 한다.
+    signingConfigs {
+        create("demo") {
+            storeFile = rootProject.file("demo.keystore")
+            storePassword = "android"
+            keyAlias = "demo"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("demo")
+        }
         release {
+            signingConfig = signingConfigs.getByName("demo")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
