@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.util.Log
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.support.v4.media.MediaMetadataCompat
@@ -59,6 +60,7 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
 
         private const val CHANNEL_ID = "playback"
         private const val NOTIFICATION_ID = 1
+        private const val TAG = "MdReader"
 
         @Volatile
         var isRunning = false
@@ -123,6 +125,7 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
 
     override fun onInit(status: Int) {
         val engine = tts
+        Log.i(TAG, "TTS init status=$status engine=${engine?.defaultEngine}")
         if (status != TextToSpeech.SUCCESS || engine == null) {
             PlaybackHub.update {
                 it.copy(ttsReady = false, ttsProblem = "음성 엔진을 시작할 수 없습니다. 기기 설정에서 TTS 엔진을 확인해 주세요.")
@@ -150,11 +153,13 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
             }
 
             override fun onError(utteranceId: String?, errorCode: Int) {
+                Log.w(TAG, "utterance $utteranceId error=$errorCode")
                 handler.post { onUtteranceFinished(utteranceId) }
             }
         })
 
         val language = engine.setLanguage(Locale.KOREAN)
+        Log.i(TAG, "Korean language result=$language")
         val problem = if (language == TextToSpeech.LANG_MISSING_DATA || language == TextToSpeech.LANG_NOT_SUPPORTED) {
             "한국어 음성이 설치되어 있지 않습니다. 설정 > 텍스트 음성 변환에서 한국어 음성 데이터를 설치해 주세요."
         } else {
@@ -232,6 +237,7 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
 
     private fun play() {
         val state = PlaybackHub.state.value
+        Log.i(TAG, "play index=${state.index}/${state.segmentCount} ttsReady=$ttsReady")
         if (state.segmentCount == 0) {
             stopEverything()
             return
@@ -245,6 +251,7 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
     }
 
     private fun pause() {
+        Log.i(TAG, "pause index=${PlaybackHub.state.value.index}")
         utteranceToken++
         playWhenReady = false
         tts?.stop()
@@ -288,7 +295,8 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
         engine.setPitch(state.pitch)
         val voice = state.voiceName?.let { name -> runCatching { engine.voices }.getOrNull()?.firstOrNull { it.name == name } }
         if (voice != null) engine.setVoice(voice) else engine.setLanguage(Locale.KOREAN)
-        engine.speak(segment, TextToSpeech.QUEUE_FLUSH, Bundle(), "$utteranceToken:${state.index}")
+        val result = engine.speak(segment, TextToSpeech.QUEUE_FLUSH, Bundle(), "$utteranceToken:${state.index}")
+        Log.i(TAG, "speak index=${state.index} result=$result")
     }
 
     private fun onUtteranceFinished(utteranceId: String?) {
@@ -317,6 +325,7 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
     }
 
     private val focusListener = AudioManager.OnAudioFocusChangeListener { change ->
+        Log.i(TAG, "audio focus change=$change")
         if (change == AudioManager.AUDIOFOCUS_LOSS || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
             handler.post { pause() }
         }
@@ -352,6 +361,7 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
             isForeground = true
             notificationWanted = true
         } catch (e: RuntimeException) {
+            Log.w(TAG, "startForeground refused", e)
             // Android 12+ refuses a foreground start from the background (e.g. a headset button
             // long after the app was closed); reading still works while the process lives.
         }

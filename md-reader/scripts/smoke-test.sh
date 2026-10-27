@@ -10,6 +10,9 @@ PKG=com.mdreader
 mkdir -p "$OUT"
 
 adb install -r "$APK"
+echo "설치된 TTS 엔진:"
+adb shell cmd package query-services -a android.intent.action.TTS_SERVICE | grep -E "packageName|name=" || true
+echo "기본 엔진: $(adb shell settings get secure tts_default_synth)"
 adb shell pm grant $PKG android.permission.POST_NOTIFICATIONS || true
 
 shot() {
@@ -59,7 +62,8 @@ for f in md-reader/samples/*; do
       echo "[$name] 재생 후에도 일시정지 버튼이 보이지 않음"
       fail=1
     fi
-    adb shell dumpsys activity services $PKG | grep -E "PlaybackService|isForeground" | head -5 || true
+    echo "[$name] 앱 로그:"
+    adb logcat -d -s MdReader:V TextToSpeech:V TtsEngines:V AndroidRuntime:E | tail -30 || true
     tap_desc "일시정지" || true
     sleep 2
     shot "${base}_3_paused"

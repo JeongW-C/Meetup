@@ -152,13 +152,23 @@ fun ReaderScreen(
                     onRemoveRecent = vm::removeRecent,
                     onOpenTtsSettings = onOpenTtsSettings,
                 )
-                else -> SegmentList(
-                    segments = document.segments,
-                    current = state.index,
-                    documentKey = state.documentKey,
-                    fontSize = prefs.fontSize,
-                    onSeek = vm::seek,
-                )
+                else -> Column(Modifier.fillMaxSize()) {
+                    // Without this, pressing play on a phone with no usable voice would do nothing visible.
+                    state.ttsProblem?.let { problem ->
+                        Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                            TtsProblemCard(problem, onOpenTtsSettings)
+                        }
+                    }
+                    Box(Modifier.weight(1f)) {
+                        SegmentList(
+                            segments = document.segments,
+                            current = state.index,
+                            documentKey = state.documentKey,
+                            fontSize = prefs.fontSize,
+                            onSeek = vm::seek,
+                        )
+                    }
+                }
             }
         }
     }
