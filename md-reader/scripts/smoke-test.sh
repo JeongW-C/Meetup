@@ -32,7 +32,7 @@ tap_desc() {
     echo "'$1' 버튼을 찾지 못함"
     return 1
   fi
-  read -r x1 y1 x2 y2 < <(echo "$bounds" | tr -d '[]' | tr ',' ' ' | sed 's/\]\[/ /')
+  read -r x1 y1 x2 y2 < <(echo "$bounds" | sed 's/\]\[/,/; s/[][]//g; s/,/ /g')
   adb shell input tap $(((x1 + x2) / 2)) $(((y1 + y2) / 2))
 }
 
@@ -54,12 +54,19 @@ for f in md-reader/samples/*; do
   ui | grep -o 'text="[^"]\+"' | head -20
 
   if tap_desc "재생"; then
-    sleep 6
+    sleep 3
     shot "${base}_2_playing"
     if ui | grep -q 'content-desc="일시정지"'; then
       echo "[$name] 재생 중 표시 확인"
     else
-      echo "[$name] 재생 후에도 일시정지 버튼이 보이지 않음"
+      echo "[$name] 일시정지 버튼이 보이지 않음 (짧은 문서는 이미 다 읽었을 수 있음)"
+    fi
+    sleep 5
+    # 서비스가 TTS 엔진에 문장을 넘겼는지(speak 결과 0 = 성공) 로그로 확인한다
+    if adb logcat -d -s MdReader:I | grep -q "speak index=0 result=0"; then
+      echo "[$name] 음성 합성 요청 성공"
+    else
+      echo "[$name] 음성 합성 요청 로그가 없음"
       fail=1
     fi
     echo "[$name] 앱 로그:"
