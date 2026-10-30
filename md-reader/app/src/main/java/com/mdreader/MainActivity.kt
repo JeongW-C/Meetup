@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,6 +23,7 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val DRIVE_PACKAGE = "com.google.android.apps.docs"
+        const val DRIVE_GAVE_UP_MILLIS = 1500L
 
         /** .md/.txt files (Drive often labels .md as octet-stream) plus Google Docs, read as plain text. */
         val PICKER_MIME_TYPES = arrayOf(
@@ -41,8 +43,17 @@ class MainActivity : ComponentActivity() {
     /** Google Drive's own file picker. Its files can't be kept for later, so they skip recent files. */
     private val pickFromDrive = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.data
-        if (result.resultCode == RESULT_OK && uri != null) vm.open(uri, remember = persistPermission(uri))
+        when {
+            result.resultCode == RESULT_OK && uri != null -> vm.open(uri, remember = persistPermission(uri))
+            // Drive closes right away when no Google account is signed in; nobody could cancel that fast.
+            SystemClock.elapsedRealtime() - driveLaunchedAt < DRIVE_GAVE_UP_MILLIS -> {
+                vm.showMessage("Google Drive를 열 수 없어 기본 파일 선택기를 엽니다. Drive 앱에 로그인되어 있는지 확인해 주세요.")
+                openDocument.launch(PICKER_MIME_TYPES)
+            }
+        }
     }
+
+    private var driveLaunchedAt = 0L
 
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -102,6 +113,7 @@ class MainActivity : ComponentActivity() {
             .addCategory(Intent.CATEGORY_OPENABLE)
             .setPackage(DRIVE_PACKAGE)
         try {
+            driveLaunchedAt = SystemClock.elapsedRealtime()
             pickFromDrive.launch(intent)
         } catch (e: ActivityNotFoundException) {
             vm.showMessage("Google Drive 앱이 없어 기본 파일 선택기를 엽니다. Drive 앱을 설치하고 로그인하면 왼쪽 메뉴에 Drive가 나타납니다.")
