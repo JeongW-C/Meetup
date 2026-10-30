@@ -27,6 +27,12 @@
                 <data android:mimeType="text/markdown" />
                 <data android:mimeType="text/x-markdown" />
             </intent-filter>
+            <!-- 구글 드라이브 등에서 "보내기/공유"로 파일을 넘겨받을 수 있게 함 -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>

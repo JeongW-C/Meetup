@@ -60,4 +60,25 @@ for f in ebook-reader/samples/*; do
   fi
 done
 
+# 구글 드라이브 등에서 "보내기/공유"로 넘겨받는 경우(SEND)도 열리는지 확인
+name=$(basename "$(ls ebook-reader/samples/* | head -1)")
+adb shell am force-stop $PKG
+adb shell run-as $PKG rm -f shared_prefs/reader.xml
+adb logcat -c
+adb shell am start -W -a android.intent.action.SEND -t text/plain \
+  --eu android.intent.extra.STREAM "file:///data/user/0/$PKG/files/$name" -n $PKG/.MainActivity
+sleep 4
+shot "share_${name%.*}"
+info=$(page_info)
+echo "[공유로 받은 $name] 첫 화면: $info"
+if [ -z "$info" ]; then
+  echo "공유로 받은 파일이 열리지 않음"
+  exit 1
+fi
+if adb logcat -d | grep -q "FATAL EXCEPTION"; then
+  adb logcat -d | grep -A 30 "FATAL EXCEPTION"
+  echo "앱이 공유 받기에서 비정상 종료됨"
+  exit 1
+fi
+
 echo "스크린샷: $OUT"
