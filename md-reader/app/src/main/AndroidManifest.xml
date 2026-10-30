@@ -10,6 +10,8 @@
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
+        <!-- Google Drive, for the "open from Google Drive" button. -->
+        <package android:name="com.google.android.apps.docs" />
     </queries>
 
     <application
@@ -36,6 +38,7 @@
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="text/markdown" />
                 <data android:mimeType="text/x-markdown" />
+                <data android:mimeType="application/x-markdown" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />

@@ -2,6 +2,7 @@ package com.mdreader
 
 import android.app.Application
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -21,12 +22,18 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.FileNotFoundException
 import java.io.IOException
+import java.io.InputStream
 
 class ReaderViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val MAX_FILE_BYTES = 20L * 1024 * 1024
+        const val GOOGLE_DOC_MIME = "application/vnd.google-apps.document"
+
+        /** Google Drive's document providers (the second is used by older Drive versions). */
+        val DRIVE_AUTHORITIES = setOf("com.google.android.apps.docs.storage", "com.google.android.apps.docs.storage.legacy")
     }
 
     private val store = SettingsStore(app)
@@ -74,7 +81,12 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
                 _message.value = "파일에 접근할 권한이 없습니다. 다시 선택해 주세요."
                 store.removeRecent(uri.toString())
             } catch (e: IOException) {
-                _message.value = "파일을 열 수 없습니다: ${e.message ?: "알 수 없는 오류"}"
+                _message.value = if (uri.authority in DRIVE_AUTHORITIES && e !is UnreadableFileException) {
+                    "Google Drive에서 파일을 받지 못했습니다. 인터넷 연결을 확인하거나, Drive 앱에서 " +
+                        "'오프라인으로 사용'을 켠 뒤 다시 시도해 주세요."
+                } else {
+                    "파일을 열 수 없습니다: ${e.message ?: "알 수 없는 오류"}"
+                }
             } finally {
                 _loading.value = false
             }
@@ -138,17 +150,56 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
         val resolver = context.contentResolver
         var name = uri.lastPathSegment?.substringAfterLast('/') ?: "문서.txt"
         var size = -1L
-        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { c ->
+        var virtual = false
+        resolver.query(uri, null, null, null, null)?.use { c ->
             if (c.moveToFirst()) {
                 val nameColumn = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                 val sizeColumn = c.getColumnIndex(OpenableColumns.SIZE)
+                val flagsColumn = c.getColumnIndex(DocumentsContract.Document.COLUMN_FLAGS)
                 if (nameColumn >= 0 && !c.isNull(nameColumn)) name = c.getString(nameColumn)
                 if (sizeColumn >= 0 && !c.isNull(sizeColumn)) size = c.getLong(sizeColumn)
+                if (flagsColumn >= 0 && !c.isNull(flagsColumn)) {
+                    virtual = c.getInt(flagsColumn) and DocumentsContract.Document.FLAG_VIRTUAL_DOCUMENT != 0
+                }
             }
         }
-        if (size > MAX_FILE_BYTES) throw IOException("파일이 너무 큽니다 (20MB 이하만 지원)")
-        val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: throw IOException("파일을 읽을 수 없습니다")
-        if (bytes.size > MAX_FILE_BYTES) throw IOException("파일이 너무 큽니다 (20MB 이하만 지원)")
-        return name to bytes
+        // Google Docs are "virtual": they have no bytes of their own, so ask for a text export instead.
+        if (virtual || resolver.getType(uri) == GOOGLE_DOC_MIME) {
+            return name to readLimited(openAsText(uri))
+        }
+        if (size > MAX_FILE_BYTES) throw UnreadableFileException("파일이 너무 큽니다 (20MB 이하만 지원)")
+        // Drive downloads a file that isn't on the phone yet while we read, so this can take a while.
+        val stream = try {
+            resolver.openInputStream(uri)
+        } catch (e: FileNotFoundException) {
+            // Some providers only offer a converted copy; fall back to that before giving up.
+            runCatching { openAsText(uri) }.getOrNull() ?: throw e
+        } ?: throw IOException("파일을 읽을 수 없습니다")
+        return name to readLimited(stream)
     }
+
+    /** Opens a document through the provider's conversion to plain text (e.g. a Google Doc). */
+    private fun openAsText(uri: Uri): InputStream {
+        val resolver = context.contentResolver
+        val types = resolver.getStreamTypes(uri, "text/*").orEmpty()
+        val type = types.firstOrNull { it == "text/plain" } ?: types.firstOrNull { it != "text/html" } ?: types.firstOrNull()
+            ?: throw UnreadableFileException("이 문서는 텍스트로 바꿀 수 없습니다. .txt 또는 .md 파일로 저장해 주세요.")
+        return resolver.openTypedAssetFileDescriptor(uri, type, null)?.createInputStream()
+            ?: throw IOException("파일을 읽을 수 없습니다")
+    }
+
+    private fun readLimited(stream: InputStream): ByteArray = stream.use { input ->
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(64 * 1024)
+        while (true) {
+            val n = input.read(buffer)
+            if (n < 0) break
+            out.write(buffer, 0, n)
+            if (out.size() > MAX_FILE_BYTES) throw UnreadableFileException("파일이 너무 큽니다 (20MB 이하만 지원)")
+        }
+        out.toByteArray()
+    }
+
+    /** A problem with the file itself, as opposed to a download or connection failure. */
+    private class UnreadableFileException(message: String) : IOException(message)
 }

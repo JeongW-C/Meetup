@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Pause
@@ -83,6 +84,7 @@ import java.util.Locale
 fun ReaderScreen(
     vm: ReaderViewModel,
     onOpenFile: () -> Unit,
+    onOpenDrive: () -> Unit,
     onOpenTtsSettings: () -> Unit,
 ) {
     val state by vm.playback.collectAsStateWithLifecycle()
@@ -148,6 +150,7 @@ fun ReaderScreen(
                     recent = recent,
                     ttsProblem = state.ttsProblem,
                     onOpenFile = onOpenFile,
+                    onOpenDrive = onOpenDrive,
                     onOpenRecent = vm::openRecent,
                     onRemoveRecent = vm::removeRecent,
                     onOpenTtsSettings = onOpenTtsSettings,
@@ -194,6 +197,7 @@ private fun HomeContent(
     recent: List<RecentFile>,
     ttsProblem: String?,
     onOpenFile: () -> Unit,
+    onOpenDrive: () -> Unit,
     onOpenRecent: (RecentFile) -> Unit,
     onRemoveRecent: (RecentFile) -> Unit,
     onOpenTtsSettings: () -> Unit,
@@ -220,6 +224,12 @@ private fun HomeContent(
                     Icon(Icons.Filled.FolderOpen, contentDescription = null)
                     Spacer(Modifier.size(8.dp))
                     Text("파일 열기")
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = onOpenDrive) {
+                    Icon(Icons.Filled.Cloud, contentDescription = null)
+                    Spacer(Modifier.size(8.dp))
+                    Text("Google Drive에서 열기")
                 }
             }
         }
