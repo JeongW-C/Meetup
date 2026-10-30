@@ -57,13 +57,15 @@ adb logcat -c
 adb shell am start -W -n $PKG/.MainActivity
 sleep 3
 if tap_text "Google Drive에서 열기"; then
-  sleep 3
+  sleep 2
+  # 안내 문구(스낵바)는 몇 초 뒤 사라지므로 화면 내용을 먼저 받아 둔다
+  screen=$(ui)
   shot "drive_1_picker"
   current=$(adb shell dumpsys activity activities | grep -m1 -E "topResumedActivity|mResumedActivity" || true)
   echo "Drive 버튼 후 화면: $current"
   if echo "$current" | grep -qE "documentsui|com.google.android.apps.docs"; then
     echo "Drive 버튼: 파일 선택기 열림"
-  elif ui | grep -q "Drive에서 고른 파일이 없습니다"; then
+  elif echo "$screen" | grep -q "Drive에서 고른 파일이 없습니다"; then
     echo "Drive 버튼: Drive가 바로 닫혀 안내 문구 표시"
   else
     echo "Drive 버튼: 파일 선택기가 열리지 않음"
