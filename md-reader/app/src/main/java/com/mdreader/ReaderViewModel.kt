@@ -69,9 +69,17 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
             _loading.value = true
             try {
                 val (name, bytes) = withContext(Dispatchers.IO) { read(uri) }
-                val document = withContext(Dispatchers.Default) { DocumentParser.parse(name, bytes) }
+                val pdf = PdfText.isPdf(bytes)
+                val document = withContext(Dispatchers.Default) {
+                    // Drive hands over Google Docs as PDF, so pull the text out of it.
+                    if (pdf) DocumentParser.parseText(name, PdfText.extract(context, bytes)) else DocumentParser.parse(name, bytes)
+                }
                 if (document.segments.isEmpty()) {
-                    _message.value = "읽을 내용이 없는 파일입니다."
+                    _message.value = if (pdf) {
+                        "PDF에서 글자를 찾지 못했습니다. 스캔한 이미지로 된 PDF는 읽을 수 없습니다."
+                    } else {
+                        "읽을 내용이 없는 파일입니다."
+                    }
                     return@launch
                 }
                 val key = uri.toString()
@@ -163,9 +171,14 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
-        // Google Docs are "virtual": they have no bytes of their own, so ask for a text export instead.
-        if (virtual || resolver.getType(uri) == GOOGLE_DOC_MIME) {
-            return name to readLimited(openAsText(uri))
+        // Google Docs have no bytes of their own ("virtual"), and other non-text files may come with a
+        // text version: ask the provider for a converted copy first.
+        val mime = resolver.getType(uri)
+        if (virtual || mime == GOOGLE_DOC_MIME) {
+            return name to readLimited(openConverted(uri))
+        }
+        if (mime != null && !mime.startsWith("text/") && hasStreamType(uri, "text/plain")) {
+            return name to readLimited(openConverted(uri))
         }
         if (size > MAX_FILE_BYTES) throw UnreadableFileException("파일이 너무 큽니다 (20MB 이하만 지원)")
         // Drive downloads a file that isn't on the phone yet while we read, so this can take a while.
@@ -173,16 +186,24 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
             resolver.openInputStream(uri)
         } catch (e: FileNotFoundException) {
             // Some providers only offer a converted copy; fall back to that before giving up.
-            runCatching { openAsText(uri) }.getOrNull() ?: throw e
+            runCatching { openConverted(uri) }.getOrNull() ?: throw e
         } ?: throw IOException("파일을 읽을 수 없습니다")
         return name to readLimited(stream)
     }
 
-    /** Opens a document through the provider's conversion to plain text (e.g. a Google Doc). */
-    private fun openAsText(uri: Uri): InputStream {
+    private fun hasStreamType(uri: Uri, filter: String): Boolean =
+        runCatching { context.contentResolver.getStreamTypes(uri, filter) }.getOrNull()?.isNotEmpty() == true
+
+    /**
+     * Opens a document through the provider's conversion (e.g. a Google Doc): plain text if offered,
+     * otherwise PDF, whose text [open] extracts.
+     */
+    private fun openConverted(uri: Uri): InputStream {
         val resolver = context.contentResolver
-        val types = resolver.getStreamTypes(uri, "text/*").orEmpty()
-        val type = types.firstOrNull { it == "text/plain" } ?: types.firstOrNull { it != "text/html" } ?: types.firstOrNull()
+        val text = runCatching { resolver.getStreamTypes(uri, "text/*") }.getOrNull().orEmpty()
+        val type = text.firstOrNull { it == "text/plain" }
+            ?: text.firstOrNull { it != "text/html" }
+            ?: runCatching { resolver.getStreamTypes(uri, "application/pdf") }.getOrNull()?.firstOrNull()
             ?: throw UnreadableFileException("이 문서는 텍스트로 바꿀 수 없습니다. .txt 또는 .md 파일로 저장해 주세요.")
         return resolver.openTypedAssetFileDescriptor(uri, type, null)?.createInputStream()
             ?: throw IOException("파일을 읽을 수 없습니다")
