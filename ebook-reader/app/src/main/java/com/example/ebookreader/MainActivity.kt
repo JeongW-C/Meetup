@@ -88,18 +88,27 @@ class MainActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(bar: SeekBar) = Unit
         })
 
-        val viewUri = intent?.takeIf { it.action == Intent.ACTION_VIEW }?.data
-        if (savedInstanceState == null && viewUri != null) {
-            openUri(viewUri, 0)
+        val incomingUri = incomingUri(intent)
+        if (savedInstanceState == null && incomingUri != null) {
+            openUri(incomingUri, 0)
         } else {
-            // 마지막으로 읽던 파일과 위치를 이어서 연다 (화면 회전 포함)
-            prefs.getString(KEY_URI, null)?.let { openUri(Uri.parse(it), prefs.getInt(KEY_OFFSET, 0)) }
+            // 마지막으로 읽던 파일과 위치를 이어서 연다 (화면 회전 포함).
+            // 다른 앱이 잠깐만 빌려준 파일은 다시 못 열 수 있으니 실패해도 조용히 넘어간다.
+            prefs.getString(KEY_URI, null)?.let { openUri(Uri.parse(it), prefs.getInt(KEY_OFFSET, 0), quiet = true) }
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        if (intent.action == Intent.ACTION_VIEW) intent.data?.let { openUri(it, 0) }
+        incomingUri(intent)?.let { openUri(it, 0) }
+    }
+
+    /** 파일 관리자·드라이브의 "다음으로 열기"(VIEW) 또는 "공유/보내기"(SEND)로 받은 파일 */
+    @Suppress("DEPRECATION")
+    private fun incomingUri(intent: Intent?): Uri? = when (intent?.action) {
+        Intent.ACTION_VIEW -> intent.data
+        Intent.ACTION_SEND -> intent.getParcelableExtra(Intent.EXTRA_STREAM)
+        else -> null
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -109,8 +118,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = when (item.itemId) {
         R.id.action_open -> {
-            // .md 파일은 기기에 따라 octet-stream으로 잡히는 경우가 있어 함께 허용
-            openDocument.launch(arrayOf("text/*", "application/octet-stream"))
+            openDocument.launch(OPEN_MIME_TYPES)
             true
         }
         R.id.action_font_smaller -> {
@@ -138,17 +146,22 @@ class MainActivity : AppCompatActivity() {
         return super.onKeyDown(keyCode, event)
     }
 
-    private fun openUri(uri: Uri, offset: Int) {
+    private fun openUri(uri: Uri, offset: Int, quiet: Boolean = false) {
         lifecycleScope.launch {
             progress.visibility = View.VISIBLE
+            var error = R.string.open_failed
             val doc = try {
+                // 구글 드라이브 파일은 여기서 내려받느라 시간이 걸릴 수 있다
                 withContext(Dispatchers.IO) { DocumentLoader.load(this@MainActivity, uri) }
+            } catch (e: DocumentLoader.NotTextException) {
+                error = R.string.open_failed_not_text
+                null
             } catch (e: Exception) {
                 null
             }
             progress.visibility = View.GONE
             if (doc == null) {
-                Toast.makeText(this@MainActivity, R.string.open_failed, Toast.LENGTH_SHORT).show()
+                if (!quiet) Toast.makeText(this@MainActivity, error, Toast.LENGTH_LONG).show()
                 prefs.edit().remove(KEY_URI).remove(KEY_OFFSET).apply()
                 return@launch
             }
@@ -264,5 +277,18 @@ class MainActivity : AppCompatActivity() {
         private const val MAX_FONT_SP = 40
         private const val FONT_STEP_SP = 2
         private const val LINE_SPACING = 1.5f
+
+        /**
+         * 파일 고르기 화면에서 고를 수 있는 형식.
+         * .md 파일은 기기·구글 드라이브에 따라 octet-stream 이나 application/x-markdown 으로 잡히고,
+         * 구글 문서는 드라이브가 텍스트로 변환해 줄 때 열 수 있다.
+         */
+        private val OPEN_MIME_TYPES = arrayOf(
+            "text/*",
+            "application/octet-stream",
+            "application/markdown",
+            "application/x-markdown",
+            "application/vnd.google-apps.document",
+        )
     }
 }

@@ -2,8 +2,10 @@ package com.example.ebookreader
 
 import android.content.Context
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import io.noties.markwon.Markwon
+import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.Charset
@@ -14,10 +16,12 @@ object DocumentLoader {
 
     class Document(val name: String, val text: CharSequence)
 
+    /** 구글 문서처럼 실제 파일이 없고 텍스트로 변환해 줄 수도 없는 문서 */
+    class NotTextException : Exception()
+
     fun load(context: Context, uri: Uri): Document {
         val name = displayName(context, uri) ?: uri.lastPathSegment ?: "document"
-        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: error("cannot open $uri")
+        val bytes = openStream(context, uri).use { it.readBytes() }
         val raw = decode(bytes).replace("\r\n", "\n")
 
         val lower = name.lowercase()
@@ -42,6 +46,32 @@ object DocumentLoader {
             val korean = listOf("x-windows-949", "MS949", "EUC-KR")
                 .firstOrNull { Charset.isSupported(it) }
             String(bytes, if (korean != null) Charset.forName(korean) else Charsets.ISO_8859_1)
+        }
+    }
+
+    /**
+     * 보통 파일은 그대로 열고, 구글 드라이브의 구글 문서 같은 "가상 파일"은
+     * 제공 앱에 텍스트로 변환해 달라고 해서 연다.
+     */
+    private fun openStream(context: Context, uri: Uri): InputStream {
+        val resolver = context.contentResolver
+        if (isVirtual(context, uri)) {
+            val type = resolver.getStreamTypes(uri, "text/*")?.firstOrNull() ?: throw NotTextException()
+            return resolver.openTypedAssetFileDescriptor(uri, type, null)?.createInputStream()
+                ?: throw NotTextException()
+        }
+        return resolver.openInputStream(uri) ?: error("cannot open $uri")
+    }
+
+    private fun isVirtual(context: Context, uri: Uri): Boolean {
+        if (!DocumentsContract.isDocumentUri(context, uri)) return false
+        return try {
+            context.contentResolver.query(uri, arrayOf(DocumentsContract.Document.COLUMN_FLAGS), null, null, null)
+                ?.use { c ->
+                    c.moveToFirst() && c.getInt(0) and DocumentsContract.Document.FLAG_VIRTUAL_DOCUMENT != 0
+                } ?: false
+        } catch (e: Exception) {
+            false
         }
     }
 

@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.ebookreader"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     // 데모용 서명 키. 저장소에 함께 올려서 누가 빌드해도 같은 서명이 되게 한다
