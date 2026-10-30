@@ -36,7 +36,52 @@ tap_desc() {
   adb shell input tap $(((x1 + x2) / 2)) $(((y1 + y2) / 2))
 }
 
+# text 가 $1 인 화면 요소의 가운데를 누른다
+tap_text() {
+  local bounds
+  bounds=$(ui | grep -o "text=\"$1\"[^>]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]\"" \
+    | head -1 | grep -o '\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]' || true)
+  if [ -z "$bounds" ]; then
+    echo "'$1' 글자를 찾지 못함"
+    return 1
+  fi
+  read -r x1 y1 x2 y2 < <(echo "$bounds" | sed 's/\]\[/,/; s/[][]//g; s/,/ /g')
+  adb shell input tap $(((x1 + x2) / 2)) $(((y1 + y2) / 2))
+}
+
 fail=0
+
+# "Google Drive에서 열기": 파일 선택기가 열리거나, (에뮬레이터처럼 Drive에 계정이 없어) Drive가 바로 닫히면
+# 안내 문구가 나와야 한다
+adb logcat -c
+adb shell am start -W -n $PKG/.MainActivity
+sleep 3
+if tap_text "Google Drive에서 열기"; then
+  sleep 2
+  # 안내 문구(스낵바)는 몇 초 뒤 사라지므로 화면 내용을 먼저 받아 둔다
+  screen=$(ui)
+  shot "drive_1_picker"
+  current=$(adb shell dumpsys activity activities | grep -m1 -E "topResumedActivity|mResumedActivity" || true)
+  echo "Drive 버튼 후 화면: $current"
+  if echo "$current" | grep -qE "documentsui|com.google.android.apps.docs"; then
+    echo "Drive 버튼: 파일 선택기 열림"
+  elif echo "$screen" | grep -q "Drive에서 고른 파일이 없습니다"; then
+    echo "Drive 버튼: Drive가 바로 닫혀 안내 문구 표시"
+  else
+    echo "Drive 버튼: 파일 선택기가 열리지 않음"
+    fail=1
+  fi
+  adb shell input keyevent KEYCODE_BACK
+  sleep 2
+else
+  fail=1
+fi
+if adb logcat -d | grep -q "FATAL EXCEPTION"; then
+  adb logcat -d | grep -A 30 "FATAL EXCEPTION"
+  echo "앱이 Drive 버튼에서 비정상 종료됨"
+  exit 1
+fi
+
 for f in md-reader/samples/*; do
   name=$(basename "$f")
   base=${name%.*}

@@ -20,10 +20,35 @@ import com.mdreader.ui.ReaderScreen
 
 class MainActivity : ComponentActivity() {
 
+    private companion object {
+        const val DRIVE_PACKAGE = "com.google.android.apps.docs"
+        const val DRIVE_NOTHING_PICKED =
+            "Drive에서 고른 파일이 없습니다. Drive 앱이 Google 계정에 로그인되어 있지 않다면 '파일 열기'를 이용해 주세요."
+
+        /** .md/.txt files (Drive often labels .md as octet-stream) plus Google Docs, read as plain text. */
+        val PICKER_MIME_TYPES = arrayOf(
+            "text/*",
+            "application/octet-stream",
+            "application/x-markdown",
+            "application/vnd.google-apps.document",
+        )
+    }
+
     private val vm: ReaderViewModel by viewModels()
 
     private val openDocument = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) vm.open(uri, remember = persistPermission(uri))
+    }
+
+    /** Google Drive's own file picker. Its files can't be kept for later, so they skip recent files. */
+    private val pickFromDrive = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val uri = result.data?.data
+        if (result.resultCode == RESULT_OK && uri != null) {
+            vm.open(uri, remember = persistPermission(uri))
+        } else {
+            // Drive also closes right away like this when no Google account is signed in.
+            vm.showMessage(DRIVE_NOTHING_PICKED)
+        }
     }
 
     private val notificationPermission =
@@ -36,7 +61,8 @@ class MainActivity : ComponentActivity() {
             MdReaderTheme {
                 ReaderScreen(
                     vm = vm,
-                    onOpenFile = { openDocument.launch(arrayOf("text/*", "application/octet-stream")) },
+                    onOpenFile = { openDocument.launch(PICKER_MIME_TYPES) },
+                    onOpenDrive = ::openFromDrive,
                     onOpenTtsSettings = ::openTtsSettings,
                 )
             }
@@ -70,6 +96,24 @@ class MainActivity : ComponentActivity() {
         true
     } catch (e: SecurityException) {
         false
+    }
+
+    /**
+     * Opens Google Drive's picker so Drive files are one tap away. Without the Drive app, falls back
+     * to the system picker, where Drive also shows up in the side menu once the app is installed.
+     */
+    private fun openFromDrive() {
+        val intent = Intent(Intent.ACTION_GET_CONTENT)
+            .setType("*/*")
+            .putExtra(Intent.EXTRA_MIME_TYPES, PICKER_MIME_TYPES)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setPackage(DRIVE_PACKAGE)
+        try {
+            pickFromDrive.launch(intent)
+        } catch (e: ActivityNotFoundException) {
+            vm.showMessage("Google Drive 앱이 없어 기본 파일 선택기를 엽니다. Drive 앱을 설치하고 로그인하면 왼쪽 메뉴에 Drive가 나타납니다.")
+            openDocument.launch(PICKER_MIME_TYPES)
+        }
     }
 
     private fun askForNotificationPermission() {

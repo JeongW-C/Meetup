@@ -5,6 +5,7 @@
 ## 기능
 
 - 파일 선택기로 .md/.txt 열기, 다른 앱에서 "열기"·"공유"로 받기
+- Google Drive의 파일 열기(아래 참고), Google 문서(Docs)는 텍스트로 변환해 읽기
 - 마크다운 기호 제거(제목, 강조, 링크, 표, 인용, HTML), 코드블록·이미지·URL은 건너뜀
 - UTF-8, UTF-16, CP949/EUC-KR 한글 텍스트 자동 인식
 - 재생/일시정지/정지, 이전·다음 문단, 문단을 눌러 그 위치부터 읽기
@@ -47,6 +48,15 @@ Android SDK(ANDROID_HOME 또는 local.properties의 sdk.dir)와 JDK 17 이상이
 ### GitHub Actions
 
 저장소 루트의 `.github/workflows/md-reader.yml`이 `md-reader/`가 바뀔 때마다 단위 테스트, 린트, APK·AAB 빌드, 에뮬레이터 스모크 테스트(`scripts/smoke-test.sh`)를 실행합니다. `main`에 반영되면 GitHub Releases에 `md-reader-v<버전>`으로 APK와 AAB를 올립니다.
+
+## Google Drive 파일 읽기
+
+휴대폰에 Google Drive 앱이 설치되어 로그인되어 있어야 합니다. 별도 로그인이나 권한 요청은 없습니다.
+
+- **파일 열기**: 시스템 파일 선택기 왼쪽 메뉴에서 Drive를 고르면 됩니다. 이렇게 연 파일은 최근 파일에 남습니다.
+- **Google Drive에서 열기**: Drive 앱의 선택기가 바로 열립니다. Drive가 이 방식의 권한을 계속 유지해 주지 않아서, 여기서 연 파일은 최근 파일에 남지 않습니다(읽던 위치는 기억합니다). Drive 앱이 없으면 시스템 파일 선택기를 엽니다. Drive 앱이 Google 계정에 로그인되어 있지 않으면 Drive가 바로 닫히니 "파일 열기"를 쓰세요.
+- 휴대폰에 내려받지 않은 파일은 여는 순간 내려받으므로 인터넷이 필요합니다. 오프라인에서 읽으려면 Drive 앱에서 파일의 "오프라인으로 사용"을 켜 두세요.
+- Google 문서는 Drive가 일반 텍스트로 변환해 준 내용을 읽습니다. 스프레드시트·프레젠테이션·PDF는 지원하지 않습니다.
 
 ## 설치
 
