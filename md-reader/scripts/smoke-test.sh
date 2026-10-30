@@ -96,7 +96,17 @@ for f in md-reader/samples/*; do
   sleep 5
   shot "${base}_1_opened"
   echo "[$name] 화면 글자:"
-  ui | grep -o 'text="[^"]\+"' | head -20
+  screen=$(ui)
+  echo "$screen" | grep -o 'text="[^"]\+"' | head -20
+  # PDF(Drive가 넘겨주는 Google 문서 형식)는 글자를 뽑아 문단으로 보여 줘야 한다
+  if [ "${name##*.}" = "pdf" ]; then
+    if echo "$screen" | grep -q "오래된 문을 천천히"; then
+      echo "[$name] PDF 글자 추출 확인"
+    else
+      echo "[$name] PDF에서 뽑은 글자가 화면에 없음"
+      fail=1
+    fi
+  fi
 
   if tap_desc "재생"; then
     sleep 3

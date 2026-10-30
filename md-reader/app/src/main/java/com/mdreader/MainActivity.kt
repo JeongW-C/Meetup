@@ -25,12 +25,13 @@ class MainActivity : ComponentActivity() {
         const val DRIVE_NOTHING_PICKED =
             "Drive에서 고른 파일이 없습니다. Drive 앱이 Google 계정에 로그인되어 있지 않다면 '파일 열기'를 이용해 주세요."
 
-        /** .md/.txt files (Drive often labels .md as octet-stream) plus Google Docs, read as plain text. */
+        /** .md/.txt files (Drive often labels .md as octet-stream), plus Google Docs and PDFs, whose text is read. */
         val PICKER_MIME_TYPES = arrayOf(
             "text/*",
             "application/octet-stream",
             "application/x-markdown",
             "application/vnd.google-apps.document",
+            "application/pdf",
         )
     }
 

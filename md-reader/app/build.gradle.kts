@@ -26,8 +26,8 @@ android {
         applicationId = "com.mdreader"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.1.1"
     }
 
     signingConfigs {
@@ -86,4 +86,6 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("androidx.media:media:1.7.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    // PDF text extraction (Google Drive exports Google Docs as PDF).
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 }
