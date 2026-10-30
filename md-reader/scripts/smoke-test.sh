@@ -51,7 +51,8 @@ tap_text() {
 
 fail=0
 
-# "Google Drive에서 열기": Drive 앱의 선택기, 또는 (Drive 앱이 없으면) 기본 파일 선택기가 열려야 한다
+# "Google Drive에서 열기": 파일 선택기가 열리거나, (에뮬레이터처럼 Drive에 계정이 없어) Drive가 바로 닫히면
+# 안내 문구가 나와야 한다
 adb logcat -c
 adb shell am start -W -n $PKG/.MainActivity
 sleep 3
@@ -62,6 +63,8 @@ if tap_text "Google Drive에서 열기"; then
   echo "Drive 버튼 후 화면: $current"
   if echo "$current" | grep -qE "documentsui|com.google.android.apps.docs"; then
     echo "Drive 버튼: 파일 선택기 열림"
+  elif ui | grep -q "Drive에서 고른 파일이 없습니다"; then
+    echo "Drive 버튼: Drive가 바로 닫혀 안내 문구 표시"
   else
     echo "Drive 버튼: 파일 선택기가 열리지 않음"
     fail=1
