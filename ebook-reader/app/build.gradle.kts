@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.ebookreader"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "1.2"
     }
 
     // 데모용 서명 키. 저장소에 함께 올려서 누가 빌드해도 같은 서명이 되게 한다
@@ -55,4 +55,6 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     // 마크다운(.md)을 서식 있는 텍스트(Spanned)로 바꿔주는 라이브러리
     implementation("io.noties.markwon:core:4.6.2")
+    // PDF에서 글자를 뽑아내는 라이브러리 (구글 드라이브는 구글 문서도 PDF로 넘겨준다)
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 }

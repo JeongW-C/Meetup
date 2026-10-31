@@ -36,7 +36,12 @@ for f in ebook-reader/samples/*; do
     -d "file:///data/user/0/$PKG/files/$name" -t text/plain -n $PKG/.MainActivity
   sleep 4
   shot "${base}_1_first-page"
-  echo "[$name] 첫 화면: $(page_info)"
+  info=$(page_info)
+  echo "[$name] 첫 화면: $info"
+  if [ -z "$info" ]; then
+    echo "$name 파일이 열리지 않음"
+    exit 1
+  fi
 
   adb shell input keyevent KEYCODE_VOLUME_DOWN
   sleep 1

@@ -16,7 +16,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- 파일 관리자에서 .txt / .md 파일을 이 앱으로 열 수 있게 함 -->
+            <!-- 파일 관리자에서 .txt / .md / .pdf 파일을 이 앱으로 열 수 있게 함 -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -26,12 +26,16 @@
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="text/markdown" />
                 <data android:mimeType="text/x-markdown" />
+                <data android:mimeType="application/markdown" />
+                <data android:mimeType="application/x-markdown" />
+                <data android:mimeType="application/pdf" />
             </intent-filter>
             <!-- 구글 드라이브 등에서 "보내기/공유"로 파일을 넘겨받을 수 있게 함 -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/*" />
+                <data android:mimeType="application/pdf" />
             </intent-filter>
         </activity>
     </application>

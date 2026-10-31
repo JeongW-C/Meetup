@@ -154,7 +154,7 @@ class MainActivity : AppCompatActivity() {
                 // 구글 드라이브 파일은 여기서 내려받느라 시간이 걸릴 수 있다
                 withContext(Dispatchers.IO) { DocumentLoader.load(this@MainActivity, uri) }
             } catch (e: DocumentLoader.NotTextException) {
-                error = R.string.open_failed_not_text
+                error = e.messageRes
                 null
             } catch (e: Exception) {
                 null
@@ -281,13 +281,14 @@ class MainActivity : AppCompatActivity() {
         /**
          * 파일 고르기 화면에서 고를 수 있는 형식.
          * .md 파일은 기기·구글 드라이브에 따라 octet-stream 이나 application/x-markdown 으로 잡히고,
-         * 구글 문서는 드라이브가 텍스트로 변환해 줄 때 열 수 있다.
+         * PDF와 구글 문서(드라이브가 PDF로 넘겨줌)는 글자만 뽑아서 보여준다.
          */
         private val OPEN_MIME_TYPES = arrayOf(
             "text/*",
             "application/octet-stream",
             "application/markdown",
             "application/x-markdown",
+            "application/pdf",
             "application/vnd.google-apps.document",
         )
     }
