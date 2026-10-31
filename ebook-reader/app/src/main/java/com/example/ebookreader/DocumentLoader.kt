@@ -16,12 +16,24 @@ object DocumentLoader {
 
     class Document(val name: String, val text: CharSequence)
 
-    /** 구글 문서처럼 실제 파일이 없고 텍스트로 변환해 줄 수도 없는 문서 */
-    class NotTextException : Exception()
+    /** 열 수는 있지만 글자로 보여줄 수 없는 문서. messageRes 는 사용자에게 보여줄 안내 문구 */
+    class NotTextException(val messageRes: Int) : Exception()
 
     fun load(context: Context, uri: Uri): Document {
         val name = displayName(context, uri) ?: uri.lastPathSegment ?: "document"
         val bytes = openStream(context, uri).use { it.readBytes() }
+
+        // PDF 파일, 그리고 드라이브가 PDF로 넘겨주는 구글 문서는 글자만 뽑아서 보여준다
+        if (PdfText.isPdf(bytes)) {
+            val pdfText = try {
+                PdfText.extract(context, bytes)
+            } catch (e: Exception) {
+                throw NotTextException(R.string.open_failed_pdf)
+            }
+            if (pdfText.isBlank()) throw NotTextException(R.string.open_failed_pdf_no_text)
+            return Document(name, pdfText.trim())
+        }
+
         val raw = decode(bytes).replace("\r\n", "\n")
 
         val lower = name.lowercase()
@@ -51,14 +63,18 @@ object DocumentLoader {
 
     /**
      * 보통 파일은 그대로 열고, 구글 드라이브의 구글 문서 같은 "가상 파일"은
-     * 제공 앱에 텍스트로 변환해 달라고 해서 연다.
+     * 제공 앱에 텍스트(없으면 PDF)로 변환해 달라고 해서 연다.
      */
     private fun openStream(context: Context, uri: Uri): InputStream {
         val resolver = context.contentResolver
         if (isVirtual(context, uri)) {
-            val type = resolver.getStreamTypes(uri, "text/*")?.firstOrNull() ?: throw NotTextException()
+            val text = resolver.getStreamTypes(uri, "text/*").orEmpty()
+            val type = text.firstOrNull { it == "text/plain" }
+                ?: text.firstOrNull { it != "text/html" }
+                ?: resolver.getStreamTypes(uri, "application/pdf")?.firstOrNull()
+                ?: throw NotTextException(R.string.open_failed_not_text)
             return resolver.openTypedAssetFileDescriptor(uri, type, null)?.createInputStream()
-                ?: throw NotTextException()
+                ?: throw NotTextException(R.string.open_failed_not_text)
         }
         return resolver.openInputStream(uri) ?: error("cannot open $uri")
     }
