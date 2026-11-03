@@ -7,6 +7,9 @@ import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.mdreader.core.DocumentParser
+import com.mdreader.core.ReadableDocument
+import com.mdreader.data.Playlist
+import com.mdreader.data.PlaylistItem
 import com.mdreader.data.ReaderPrefs
 import com.mdreader.data.RecentFile
 import com.mdreader.data.SettingsStore
@@ -44,6 +47,8 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
     val recentFiles: StateFlow<List<RecentFile>> =
         store.recentFiles.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val playlist: StateFlow<List<PlaylistItem>> = Playlist.items
+
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
@@ -60,6 +65,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
                 .distinctUntilChanged()
                 .collect { (key, index) -> if (key != null) store.savePosition(key, index) }
         }
+        viewModelScope.launch(Dispatchers.IO) { Playlist.ensureLoaded(context) }
         PlaybackHub.warmUp(context)
     }
 
@@ -68,20 +74,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             _loading.value = true
             try {
-                val (name, bytes) = withContext(Dispatchers.IO) { read(uri) }
-                val pdf = PdfText.isPdf(bytes)
-                val document = withContext(Dispatchers.Default) {
-                    // Drive hands over Google Docs as PDF, so pull the text out of it.
-                    if (pdf) DocumentParser.parseText(name, PdfText.extract(context, bytes)) else DocumentParser.parse(name, bytes)
-                }
-                if (document.segments.isEmpty()) {
-                    _message.value = if (pdf) {
-                        "PDF에서 글자를 찾지 못했습니다. 스캔한 이미지로 된 PDF는 읽을 수 없습니다."
-                    } else {
-                        "읽을 내용이 없는 파일입니다."
-                    }
-                    return@launch
-                }
+                val document = loadDocument(uri)
                 val key = uri.toString()
                 PlaybackHub.load(context, document, key, store.position(key))
                 if (remember) store.addRecent(RecentFile(key, document.title))
@@ -89,16 +82,128 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
                 _message.value = "파일에 접근할 권한이 없습니다. 다시 선택해 주세요."
                 store.removeRecent(uri.toString())
             } catch (e: IOException) {
-                _message.value = if (uri.authority in DRIVE_AUTHORITIES && e !is UnreadableFileException) {
-                    "Google Drive에서 파일을 받지 못했습니다. 인터넷 연결을 확인하거나, Drive 앱에서 " +
-                        "'오프라인으로 사용'을 켠 뒤 다시 시도해 주세요."
-                } else {
-                    "파일을 열 수 없습니다: ${e.message ?: "알 수 없는 오류"}"
-                }
+                _message.value = describe(uri, e)
             } finally {
                 _loading.value = false
             }
         }
+    }
+
+    /** Reads and parses [uri]; an empty or unreadable file throws an IOException with a message for the user. */
+    private suspend fun loadDocument(uri: Uri): ReadableDocument {
+        val (name, bytes) = withContext(Dispatchers.IO) { read(uri) }
+        val pdf = PdfText.isPdf(bytes)
+        val document = withContext(Dispatchers.Default) {
+            // Drive hands over Google Docs as PDF, so pull the text out of it.
+            if (pdf) DocumentParser.parseText(name, PdfText.extract(context, bytes)) else DocumentParser.parse(name, bytes)
+        }
+        if (document.segments.isEmpty()) {
+            throw UnreadableFileException(
+                if (pdf) "PDF에서 글자를 찾지 못했습니다. 스캔한 이미지로 된 PDF는 읽을 수 없습니다." else "읽을 내용이 없는 파일입니다.",
+            )
+        }
+        return document
+    }
+
+    private fun describe(uri: Uri, e: IOException): String = when {
+        uri.authority in DRIVE_AUTHORITIES && e !is UnreadableFileException ->
+            "Google Drive에서 파일을 받지 못했습니다. 인터넷 연결을 확인하거나, Drive 앱에서 " +
+                "'오프라인으로 사용'을 켠 뒤 다시 시도해 주세요."
+        e is UnreadableFileException -> e.message ?: "파일을 열 수 없습니다."
+        else -> "파일을 열 수 없습니다: ${e.message ?: "알 수 없는 오류"}"
+    }
+
+    // ---- Playlist ----
+
+    /** Copies each file's text into the playlist, in the order picked. */
+    fun addToPlaylist(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            _loading.value = true
+            var added = 0
+            var lastProblem: String? = null
+            try {
+                for (uri in uris) {
+                    try {
+                        val document = loadDocument(uri)
+                        withContext(Dispatchers.IO) { Playlist.add(context, document) }
+                        added++
+                    } catch (e: SecurityException) {
+                        lastProblem = "파일에 접근할 권한이 없습니다."
+                    } catch (e: IOException) {
+                        lastProblem = describe(uri, e)
+                    }
+                }
+            } finally {
+                _loading.value = false
+            }
+            val failed = uris.size - added
+            _message.value = when {
+                failed == 0 -> "재생목록에 ${added}개를 추가했습니다."
+                added == 0 -> lastProblem ?: "재생목록에 추가하지 못했습니다."
+                else -> "재생목록에 ${added}개를 추가했습니다. ${failed}개는 열 수 없었습니다: $lastProblem"
+            }
+        }
+    }
+
+    /** Adds the document on screen (e.g. one opened from Drive or shared text). */
+    fun addCurrentToPlaylist() {
+        val state = playback.value
+        val document = state.document ?: return
+        if (state.playlistItemId != null) {
+            _message.value = "이미 재생목록에 있는 파일입니다."
+            return
+        }
+        viewModelScope.launch {
+            val item = withContext(Dispatchers.IO) { Playlist.add(context, document) }
+            // From now on this document continues into the rest of the playlist.
+            PlaybackHub.update {
+                if (it.document === document) {
+                    it.copy(playlistItemId = item.id, documentKey = Playlist.documentKey(item.id))
+                } else {
+                    it
+                }
+            }
+            _message.value = "재생목록에 추가했습니다."
+        }
+    }
+
+    /** Opens a playlist item; [autoPlay] starts reading right away. */
+    fun openPlaylistItem(item: PlaylistItem, autoPlay: Boolean, fromStart: Boolean = false) {
+        viewModelScope.launch {
+            val document = withContext(Dispatchers.IO) { Playlist.document(context, item.id) }
+            if (document == null) {
+                _message.value = "저장된 내용을 찾을 수 없습니다. 재생목록에서 지우고 다시 추가해 주세요."
+                return@launch
+            }
+            val key = Playlist.documentKey(item.id)
+            val start = if (fromStart) 0 else store.position(key)
+            PlaybackHub.load(context, document, key, start, playlistItemId = item.id)
+            if (autoPlay) PlaybackHub.play(context)
+        }
+    }
+
+    fun playPlaylist() {
+        Playlist.items.value.firstOrNull()?.let { openPlaylistItem(it, autoPlay = true, fromStart = true) }
+    }
+
+    /** Jumps to the previous (-1) or next (+1) playlist item, keeping playback going if it was. */
+    fun skipPlaylist(offset: Int) {
+        val state = playback.value
+        val target = state.playlistItemId?.let { Playlist.neighbor(it, offset) } ?: return
+        openPlaylistItem(target, autoPlay = state.isPlaying, fromStart = true)
+    }
+
+    fun removeFromPlaylist(item: PlaylistItem) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { Playlist.remove(context, item.id) }
+            // The open copy can still be read; it just no longer leads anywhere.
+            PlaybackHub.update { if (it.playlistItemId == item.id) it.copy(playlistItemId = null) else it }
+        }
+    }
+
+    fun movePlaylistItem(from: Int, to: Int) {
+        viewModelScope.launch { withContext(Dispatchers.IO) { Playlist.move(context, from, to) } }
     }
 
     /** Text shared from another app (no file behind it). */

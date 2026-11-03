@@ -28,6 +28,7 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.mdreader.MainActivity
 import com.mdreader.R
+import com.mdreader.data.Playlist
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,6 +36,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Locale
 
 /**
@@ -309,7 +311,29 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
         } else {
             // Finished the document: rewind so the next play starts from the top.
             PlaybackHub.update { it.copy(index = 0) }
-            pause()
+            val next = state.playlistItemId?.let { Playlist.neighbor(it, 1) }
+            if (next != null) playPlaylistItem(next.id) else pause()
+        }
+    }
+
+    /** Moves on to the next playlist item without leaving the playing state (or the foreground). */
+    private fun playPlaylistItem(id: String) {
+        val token = ++utteranceToken
+        scope.launch {
+            val document = withContext(Dispatchers.IO) { runCatching { Playlist.document(this@PlaybackService, id) }.getOrNull() }
+            // Paused, stopped or sought while the next file was loading.
+            if (token != utteranceToken || !PlaybackHub.state.value.isPlaying) return@launch
+            if (document == null) {
+                Log.w(TAG, "playlist item $id is gone")
+                val after = Playlist.neighbor(id, 1)
+                if (after != null) playPlaylistItem(after.id) else pause()
+                return@launch
+            }
+            Log.i(TAG, "playlist next ${document.title}")
+            PlaybackHub.update {
+                it.copy(document = document, documentKey = Playlist.documentKey(id), playlistItemId = id, index = 0)
+            }
+            speakCurrent()
         }
     }
 
