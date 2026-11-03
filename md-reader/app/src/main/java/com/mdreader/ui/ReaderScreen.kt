@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -24,6 +25,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Description
@@ -73,6 +80,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mdreader.ReaderViewModel
+import com.mdreader.data.PlaylistItem
 import com.mdreader.data.ReaderPrefs
 import com.mdreader.data.RecentFile
 import com.mdreader.playback.PlaybackState
@@ -85,8 +93,11 @@ fun ReaderScreen(
     vm: ReaderViewModel,
     onOpenFile: () -> Unit,
     onOpenDrive: () -> Unit,
+    onAddFiles: () -> Unit,
+    onAddFromDrive: () -> Unit,
     onOpenTtsSettings: () -> Unit,
 ) {
+    val playlist by vm.playlist.collectAsStateWithLifecycle()
     val state by vm.playback.collectAsStateWithLifecycle()
     val prefs by vm.prefs.collectAsStateWithLifecycle()
     val recent by vm.recentFiles.collectAsStateWithLifecycle()
@@ -95,6 +106,16 @@ fun ReaderScreen(
 
     val snackbar = remember { SnackbarHostState() }
     var showSettings by remember { mutableStateOf(false) }
+    var showPlaylist by remember { mutableStateOf(false) }
+
+    val playlistActions = PlaylistActions(
+        onPlayAll = vm::playPlaylist,
+        onAddFiles = onAddFiles,
+        onAddFromDrive = onAddFromDrive,
+        onOpen = { vm.openPlaylistItem(it, autoPlay = false) },
+        onMove = vm::movePlaylistItem,
+        onRemove = vm::removeFromPlaylist,
+    )
 
     LaunchedEffect(message) {
         val text = message ?: return@LaunchedEffect
@@ -117,6 +138,16 @@ fun ReaderScreen(
                     }
                 },
                 actions = {
+                    if (document != null && state.playlistItemId == null) {
+                        IconButton(onClick = vm::addCurrentToPlaylist) {
+                            Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = "재생목록에 추가")
+                        }
+                    }
+                    if (document != null) {
+                        IconButton(onClick = { showPlaylist = true }) {
+                            Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = "재생목록")
+                        }
+                    }
                     IconButton(onClick = onOpenFile) {
                         Icon(Icons.Filled.FolderOpen, contentDescription = "파일 열기")
                     }
@@ -130,6 +161,8 @@ fun ReaderScreen(
             if (document != null) {
                 PlayerBar(
                     state = state,
+                    playlist = playlist,
+                    onSkipFile = vm::skipPlaylist,
                     onToggle = vm::togglePlay,
                     onPrevious = vm::previous,
                     onNext = vm::next,
@@ -148,6 +181,8 @@ fun ReaderScreen(
                 loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 document == null -> HomeContent(
                     recent = recent,
+                    playlist = playlist,
+                    playlistActions = playlistActions,
                     ttsProblem = state.ttsProblem,
                     onOpenFile = onOpenFile,
                     onOpenDrive = onOpenDrive,
@@ -176,6 +211,30 @@ fun ReaderScreen(
         }
     }
 
+    if (showPlaylist) {
+        ModalBottomSheet(onDismissRequest = { showPlaylist = false }) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
+            ) {
+                playlistSection(
+                    items = playlist,
+                    currentId = state.playlistItemId,
+                    actions = playlistActions.copy(
+                        onOpen = {
+                            showPlaylist = false
+                            vm.openPlaylistItem(it, autoPlay = false)
+                        },
+                        onPlayAll = {
+                            showPlaylist = false
+                            vm.playPlaylist()
+                        },
+                    ),
+                )
+            }
+        }
+    }
+
     if (showSettings) {
         ModalBottomSheet(onDismissRequest = { showSettings = false }) {
             SettingsContent(
@@ -195,6 +254,8 @@ fun ReaderScreen(
 @Composable
 private fun HomeContent(
     recent: List<RecentFile>,
+    playlist: List<PlaylistItem>,
+    playlistActions: PlaylistActions,
     ttsProblem: String?,
     onOpenFile: () -> Unit,
     onOpenDrive: () -> Unit,
@@ -236,6 +297,7 @@ private fun HomeContent(
         if (ttsProblem != null) {
             item { TtsProblemCard(ttsProblem, onOpenTtsSettings) }
         }
+        playlistSection(items = playlist, currentId = null, actions = playlistActions)
         if (recent.isNotEmpty()) {
             item {
                 Text(
@@ -264,6 +326,95 @@ private fun HomeContent(
                         Icon(Icons.Filled.Close, contentDescription = "목록에서 삭제")
                     }
                 }
+            }
+        }
+    }
+}
+
+data class PlaylistActions(
+    val onPlayAll: () -> Unit,
+    val onAddFiles: () -> Unit,
+    val onAddFromDrive: () -> Unit,
+    val onOpen: (PlaylistItem) -> Unit,
+    val onMove: (from: Int, to: Int) -> Unit,
+    val onRemove: (PlaylistItem) -> Unit,
+)
+
+/** The playlist: files read one after another, with buttons to add, reorder and remove them. */
+private fun LazyListScope.playlistSection(
+    items: List<PlaylistItem>,
+    currentId: String?,
+    actions: PlaylistActions,
+) {
+    item(key = "playlist-header") {
+        Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (items.isEmpty()) "재생목록" else "재생목록 (${items.size})",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (items.isNotEmpty()) {
+                    Button(onClick = actions.onPlayAll) {
+                        Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = null)
+                        Spacer(Modifier.size(8.dp))
+                        Text("처음부터 재생")
+                    }
+                }
+            }
+            if (items.isEmpty()) {
+                Text(
+                    "여러 파일을 넣어 두면 차례로 이어서 읽어 드립니다.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+            Row(
+                Modifier.padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(onClick = actions.onAddFiles) {
+                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Spacer(Modifier.size(4.dp))
+                    Text("파일 추가")
+                }
+                OutlinedButton(onClick = actions.onAddFromDrive) {
+                    Icon(Icons.Filled.Cloud, contentDescription = null)
+                    Spacer(Modifier.size(4.dp))
+                    Text("Drive에서 추가")
+                }
+            }
+        }
+    }
+    itemsIndexed(items, key = { _, item -> "playlist-" + item.id }) { index, item ->
+        val current = item.id == currentId
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(
+                    if (current) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                    RoundedCornerShape(8.dp),
+                )
+                .clickable { actions.onOpen(item) }
+                .padding(start = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("${index + 1}", style = MaterialTheme.typography.labelLarge, modifier = Modifier.size(width = 28.dp, height = 20.dp))
+            Text(
+                item.title,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = if (current) FontWeight.Medium else FontWeight.Normal,
+            )
+            IconButton(onClick = { actions.onMove(index, index - 1) }, enabled = index > 0) {
+                Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "위로")
+            }
+            IconButton(onClick = { actions.onMove(index, index + 1) }, enabled = index < items.lastIndex) {
+                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "아래로")
+            }
+            IconButton(onClick = { actions.onRemove(item) }) {
+                Icon(Icons.Filled.Close, contentDescription = "재생목록에서 삭제")
             }
         }
     }
@@ -329,6 +480,8 @@ private fun SegmentList(
 @Composable
 private fun PlayerBar(
     state: PlaybackState,
+    playlist: List<PlaylistItem>,
+    onSkipFile: (Int) -> Unit,
     onToggle: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
@@ -356,6 +509,21 @@ private fun PlayerBar(
                     style = MaterialTheme.typography.labelMedium,
                 )
                 SleepCountdown(state.sleepAtMillis)
+            }
+            val position = state.playlistItemId?.let { id -> playlist.indexOfFirst { it.id == id } } ?: -1
+            if (position >= 0) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = { onSkipFile(-1) }, enabled = position > 0) { Text("이전 파일") }
+                    Text(
+                        "재생목록 ${position + 1} / ${playlist.size}",
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    TextButton(onClick = { onSkipFile(1) }, enabled = position < playlist.lastIndex) { Text("다음 파일") }
+                }
             }
             Row(
                 Modifier.fillMaxWidth(),

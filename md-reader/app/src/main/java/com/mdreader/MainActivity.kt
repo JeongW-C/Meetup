@@ -52,6 +52,28 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Several files at once for the playlist; their text is copied, so no lasting permission is needed. */
+    private val addFiles = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        vm.addToPlaylist(uris)
+    }
+
+    private val addFromDrive = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val data = result.data
+        val uris = buildList {
+            val clip = data?.clipData
+            if (clip != null) {
+                for (i in 0 until clip.itemCount) clip.getItemAt(i).uri?.let(::add)
+            } else {
+                data?.data?.let(::add)
+            }
+        }
+        if (result.resultCode == RESULT_OK && uris.isNotEmpty()) {
+            vm.addToPlaylist(uris)
+        } else {
+            vm.showMessage(DRIVE_NOTHING_PICKED)
+        }
+    }
+
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
@@ -64,6 +86,8 @@ class MainActivity : ComponentActivity() {
                     vm = vm,
                     onOpenFile = { openDocument.launch(PICKER_MIME_TYPES) },
                     onOpenDrive = ::openFromDrive,
+                    onAddFiles = { addFiles.launch(PICKER_MIME_TYPES) },
+                    onAddFromDrive = ::addFromDriveToPlaylist,
                     onOpenTtsSettings = ::openTtsSettings,
                 )
             }
@@ -104,16 +128,27 @@ class MainActivity : ComponentActivity() {
      * to the system picker, where Drive also shows up in the side menu once the app is installed.
      */
     private fun openFromDrive() {
-        val intent = Intent(Intent.ACTION_GET_CONTENT)
-            .setType("*/*")
-            .putExtra(Intent.EXTRA_MIME_TYPES, PICKER_MIME_TYPES)
-            .addCategory(Intent.CATEGORY_OPENABLE)
-            .setPackage(DRIVE_PACKAGE)
         try {
-            pickFromDrive.launch(intent)
+            pickFromDrive.launch(driveIntent(multiple = false))
         } catch (e: ActivityNotFoundException) {
             vm.showMessage("Google Drive 앱이 없어 기본 파일 선택기를 엽니다. Drive 앱을 설치하고 로그인하면 왼쪽 메뉴에 Drive가 나타납니다.")
             openDocument.launch(PICKER_MIME_TYPES)
+        }
+    }
+
+    private fun driveIntent(multiple: Boolean) = Intent(Intent.ACTION_GET_CONTENT)
+        .setType("*/*")
+        .putExtra(Intent.EXTRA_MIME_TYPES, PICKER_MIME_TYPES)
+        .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, multiple)
+        .addCategory(Intent.CATEGORY_OPENABLE)
+        .setPackage(DRIVE_PACKAGE)
+
+    private fun addFromDriveToPlaylist() {
+        try {
+            addFromDrive.launch(driveIntent(multiple = true))
+        } catch (e: ActivityNotFoundException) {
+            vm.showMessage("Google Drive 앱이 없어 기본 파일 선택기를 엽니다.")
+            addFiles.launch(PICKER_MIME_TYPES)
         }
     }
 

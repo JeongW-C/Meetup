@@ -15,6 +15,8 @@ data class PlaybackState(
     val document: ReadableDocument? = null,
     /** Identifies the open file (its URI) so the reading position can be saved. */
     val documentKey: String? = null,
+    /** Set while reading a playlist item: the service moves on to the next item when this one ends. */
+    val playlistItemId: String? = null,
     val index: Int = 0,
     val isPlaying: Boolean = false,
     val ttsReady: Boolean = false,
@@ -39,13 +41,20 @@ object PlaybackHub {
 
     internal fun update(transform: (PlaybackState) -> PlaybackState) = _state.update(transform)
 
-    fun load(context: Context, document: ReadableDocument, key: String, startIndex: Int) {
+    fun load(
+        context: Context,
+        document: ReadableDocument,
+        key: String,
+        startIndex: Int,
+        playlistItemId: String? = null,
+    ) {
         if (PlaybackService.isRunning) send(context, PlaybackService.ACTION_PAUSE)
         val last = (document.segments.size - 1).coerceAtLeast(0)
         update {
             it.copy(
                 document = document,
                 documentKey = key,
+                playlistItemId = playlistItemId,
                 index = startIndex.coerceIn(0, last),
                 isPlaying = false,
             )
@@ -54,7 +63,7 @@ object PlaybackHub {
 
     fun close(context: Context) {
         if (PlaybackService.isRunning) send(context, PlaybackService.ACTION_STOP)
-        update { it.copy(document = null, documentKey = null, index = 0, isPlaying = false) }
+        update { it.copy(document = null, documentKey = null, playlistItemId = null, index = 0, isPlaying = false) }
     }
 
     fun play(context: Context) {
