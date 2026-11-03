@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Pause
@@ -95,6 +96,7 @@ fun ReaderScreen(
     onOpenDrive: () -> Unit,
     onAddFiles: () -> Unit,
     onAddFromDrive: () -> Unit,
+    onAddFolder: () -> Unit,
     onOpenTtsSettings: () -> Unit,
 ) {
     val playlist by vm.playlist.collectAsStateWithLifecycle()
@@ -112,6 +114,7 @@ fun ReaderScreen(
         onPlayAll = vm::playPlaylist,
         onAddFiles = onAddFiles,
         onAddFromDrive = onAddFromDrive,
+        onAddFolder = onAddFolder,
         onOpen = { vm.openPlaylistItem(it, autoPlay = false) },
         onMove = vm::movePlaylistItem,
         onRemove = vm::removeFromPlaylist,
@@ -335,6 +338,7 @@ data class PlaylistActions(
     val onPlayAll: () -> Unit,
     val onAddFiles: () -> Unit,
     val onAddFromDrive: () -> Unit,
+    val onAddFolder: () -> Unit,
     val onOpen: (PlaylistItem) -> Unit,
     val onMove: (from: Int, to: Int) -> Unit,
     val onRemove: (PlaylistItem) -> Unit,
@@ -383,6 +387,11 @@ private fun LazyListScope.playlistSection(
                     Spacer(Modifier.size(4.dp))
                     Text("Drive에서 추가")
                 }
+            }
+            OutlinedButton(onClick = actions.onAddFolder) {
+                Icon(Icons.Filled.CreateNewFolder, contentDescription = null)
+                Spacer(Modifier.size(4.dp))
+                Text("폴더 통째로 추가")
             }
         }
     }

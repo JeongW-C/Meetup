@@ -26,4 +26,38 @@ object PlaylistOrder {
 
     fun decodeSegments(text: String): List<String> =
         text.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
+
+    private val READABLE_EXTENSIONS = setOf("md", "markdown", "mdown", "mkd", "mkdn", "txt", "text", "pdf")
+    private val DIGITS = Regex("\\d+|\\D+")
+
+    /** Whether a file found in a folder is one the reader can read aloud (by name, or by type when it has no extension). */
+    fun isReadable(fileName: String, mimeType: String?): Boolean {
+        if (fileName.startsWith(".")) return false
+        val extension = fileName.substringAfterLast('.', "").lowercase()
+        if (extension in READABLE_EXTENSIONS) return true
+        return extension.isEmpty() && (
+            mimeType?.startsWith("text/") == true ||
+                mimeType == "application/pdf" ||
+                mimeType == "application/vnd.google-apps.document"
+            )
+    }
+
+    /** Orders names the way people number files: "2장" before "10장", ignoring case. */
+    val naturalOrder: Comparator<String> = Comparator { a, b ->
+        val left = DIGITS.findAll(a.lowercase()).map { it.value }.toList()
+        val right = DIGITS.findAll(b.lowercase()).map { it.value }.toList()
+        for (i in 0 until minOf(left.size, right.size)) {
+            val x = left[i]
+            val y = right[i]
+            val compared = if (x[0].isDigit() && y[0].isDigit()) {
+                val nx = x.trimStart('0')
+                val ny = y.trimStart('0')
+                if (nx.length != ny.length) nx.length - ny.length else nx.compareTo(ny)
+            } else {
+                x.compareTo(y)
+            }
+            if (compared != 0) return@Comparator compared
+        }
+        left.size - right.size
+    }
 }
