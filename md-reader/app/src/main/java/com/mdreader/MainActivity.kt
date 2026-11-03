@@ -57,6 +57,11 @@ class MainActivity : ComponentActivity() {
         vm.addToPlaylist(uris)
     }
 
+    /** A whole folder for the playlist; access only has to last while its files are copied. */
+    private val addFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) vm.addFolderToPlaylist(uri)
+    }
+
     private val addFromDrive = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val data = result.data
         val uris = buildList {
@@ -88,6 +93,7 @@ class MainActivity : ComponentActivity() {
                     onOpenDrive = ::openFromDrive,
                     onAddFiles = { addFiles.launch(PICKER_MIME_TYPES) },
                     onAddFromDrive = ::addFromDriveToPlaylist,
+                    onAddFolder = ::addFolderToPlaylist,
                     onOpenTtsSettings = ::openTtsSettings,
                 )
             }
@@ -149,6 +155,14 @@ class MainActivity : ComponentActivity() {
         } catch (e: ActivityNotFoundException) {
             vm.showMessage("Google Drive 앱이 없어 기본 파일 선택기를 엽니다.")
             addFiles.launch(PICKER_MIME_TYPES)
+        }
+    }
+
+    private fun addFolderToPlaylist() {
+        try {
+            addFolder.launch(null)
+        } catch (e: ActivityNotFoundException) {
+            vm.showMessage("이 기기에서는 폴더를 고를 수 없습니다. '파일 추가'로 여러 파일을 골라 주세요.")
         }
     }
 

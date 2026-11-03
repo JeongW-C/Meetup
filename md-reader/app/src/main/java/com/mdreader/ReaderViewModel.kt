@@ -7,6 +7,7 @@ import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.mdreader.core.DocumentParser
+import com.mdreader.core.PlaylistOrder
 import com.mdreader.core.ReadableDocument
 import com.mdreader.data.Playlist
 import com.mdreader.data.PlaylistItem
@@ -33,6 +34,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
 
     private companion object {
         const val MAX_FILE_BYTES = 20L * 1024 * 1024
+        const val MAX_FOLDER_FILES = 300
         const val GOOGLE_DOC_MIME = "application/vnd.google-apps.document"
 
         /** Google Drive's document providers (the second is used by older Drive versions). */
@@ -116,7 +118,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
     // ---- Playlist ----
 
     /** Copies each file's text into the playlist, in the order picked. */
-    fun addToPlaylist(uris: List<Uri>) {
+    fun addToPlaylist(uris: List<Uri>, note: String? = null) {
         if (uris.isEmpty()) return
         viewModelScope.launch {
             _loading.value = true
@@ -138,12 +140,66 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
                 _loading.value = false
             }
             val failed = uris.size - added
-            _message.value = when {
+            val result = when {
                 failed == 0 -> "재생목록에 ${added}개를 추가했습니다."
                 added == 0 -> lastProblem ?: "재생목록에 추가하지 못했습니다."
                 else -> "재생목록에 ${added}개를 추가했습니다. ${failed}개는 열 수 없었습니다: $lastProblem"
             }
+            _message.value = if (note == null) result else "$result $note"
         }
+    }
+
+    /**
+     * Adds every readable file in a picked folder (and its subfolders), sorted by name so numbered
+     * chapters play in order.
+     */
+    fun addFolderToPlaylist(treeUri: Uri) {
+        viewModelScope.launch {
+            _loading.value = true
+            val files = try {
+                withContext(Dispatchers.IO) { listFolder(treeUri) }
+            } catch (e: Exception) {
+                _loading.value = false
+                _message.value = "폴더를 읽을 수 없습니다: ${e.message ?: "알 수 없는 오류"}"
+                return@launch
+            }
+            _loading.value = false
+            when {
+                files.isEmpty() -> _message.value = "폴더에 읽을 수 있는 파일(.md, .txt, .pdf)이 없습니다."
+                files.size > MAX_FOLDER_FILES ->
+                    addToPlaylist(files.take(MAX_FOLDER_FILES), note = "(파일이 너무 많아 앞의 ${MAX_FOLDER_FILES}개만 넣었습니다.)")
+                else -> addToPlaylist(files)
+            }
+        }
+    }
+
+    /** Readable documents under [treeUri], ordered by their path inside it. */
+    private fun listFolder(treeUri: Uri): List<Uri> {
+        val resolver = context.contentResolver
+        val found = mutableListOf<Pair<String, Uri>>()
+        val pending = ArrayDeque(listOf(DocumentsContract.getTreeDocumentId(treeUri) to ""))
+        val columns = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+        )
+        while (pending.isNotEmpty() && found.size <= MAX_FOLDER_FILES) {
+            val (parentId, path) = pending.removeFirst()
+            val children = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, parentId)
+            resolver.query(children, columns, null, null, null)?.use { c ->
+                while (c.moveToNext()) {
+                    val id = c.getString(0) ?: continue
+                    val name = c.getString(1) ?: continue
+                    val mime = c.getString(2)
+                    if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
+                        if (!name.startsWith(".")) pending.add(id to "$path$name/")
+                    } else if (PlaylistOrder.isReadable(name, mime)) {
+                        found.add(path + name to DocumentsContract.buildDocumentUriUsingTree(treeUri, id))
+                    }
+                }
+            }
+        }
+        return found.sortedWith(compareBy(PlaylistOrder.naturalOrder) { it.first }).map { it.second }
     }
 
     /** Adds the document on screen (e.g. one opened from Drive or shared text). */
