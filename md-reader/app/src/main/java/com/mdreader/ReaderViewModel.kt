@@ -35,7 +35,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         const val MAX_FILE_BYTES = 20L * 1024 * 1024
         const val MAX_FOLDER_FILES = 300
-        const val GOOGLE_DOC_MIME = "application/vnd.google-apps.document"
+        const val GOOGLE_DOC_MIME = PlaylistOrder.GOOGLE_DOC_MIME
 
         /** Google Drive's document providers (the second is used by older Drive versions). */
         val DRIVE_AUTHORITIES = setOf("com.google.android.apps.docs.storage", "com.google.android.apps.docs.storage.legacy")
@@ -165,7 +165,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
             }
             _loading.value = false
             when {
-                files.isEmpty() -> _message.value = "폴더에 읽을 수 있는 파일(.md, .txt, .pdf)이 없습니다."
+                files.isEmpty() -> _message.value = "폴더에 읽을 수 있는 파일(.md, .txt, .pdf, Google 문서)이 없습니다."
                 files.size > MAX_FOLDER_FILES ->
                     addToPlaylist(files.take(MAX_FOLDER_FILES), note = "(파일이 너무 많아 앞의 ${MAX_FOLDER_FILES}개만 넣었습니다.)")
                 else -> addToPlaylist(files)
@@ -365,7 +365,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
         val type = text.firstOrNull { it == "text/plain" }
             ?: text.firstOrNull { it != "text/html" }
             ?: runCatching { resolver.getStreamTypes(uri, "application/pdf") }.getOrNull()?.firstOrNull()
-            ?: throw UnreadableFileException("이 문서는 텍스트로 바꿀 수 없습니다. .txt 또는 .md 파일로 저장해 주세요.")
+            ?: throw UnreadableFileException("이 문서는 텍스트로 바꿀 수 없습니다. Google 문서, .txt, .md 파일만 읽을 수 있습니다.")
         return resolver.openTypedAssetFileDescriptor(uri, type, null)?.createInputStream()
             ?: throw IOException("파일을 읽을 수 없습니다")
     }

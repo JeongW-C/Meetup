@@ -27,19 +27,22 @@ object PlaylistOrder {
     fun decodeSegments(text: String): List<String> =
         text.split('\n').map { it.trim() }.filter { it.isNotEmpty() }
 
+    const val GOOGLE_DOC_MIME = "application/vnd.google-apps.document"
+
     private val READABLE_EXTENSIONS = setOf("md", "markdown", "mdown", "mkd", "mkdn", "txt", "text", "pdf")
     private val DIGITS = Regex("\\d+|\\D+")
 
-    /** Whether a file found in a folder is one the reader can read aloud (by name, or by type when it has no extension). */
+    /**
+     * Whether a file found in a folder is one the reader can read aloud: by its type (Google Docs,
+     * PDF, text) or by a known extension. Google Docs have no extension and often a dot in their
+     * name ("12장. 결정"), so the type is checked first.
+     */
     fun isReadable(fileName: String, mimeType: String?): Boolean {
         if (fileName.startsWith(".")) return false
-        val extension = fileName.substringAfterLast('.', "").lowercase()
-        if (extension in READABLE_EXTENSIONS) return true
-        return extension.isEmpty() && (
-            mimeType?.startsWith("text/") == true ||
-                mimeType == "application/pdf" ||
-                mimeType == "application/vnd.google-apps.document"
-            )
+        if (mimeType == GOOGLE_DOC_MIME || mimeType == "application/pdf" || mimeType?.startsWith("text/") == true) {
+            return true
+        }
+        return fileName.substringAfterLast('.', "").lowercase() in READABLE_EXTENSIONS
     }
 
     /** Orders names the way people number files: "2장" before "10장", ignoring case. */

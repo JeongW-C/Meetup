@@ -57,4 +57,12 @@ class PlaylistOrderTest {
         assertFalse(PlaylistOrder.isReadable("사진.jpg", "image/jpeg"))
         assertFalse(PlaylistOrder.isReadable(".숨김.md", null))
     }
+
+    @Test
+    fun googleDocsWithDotsInTheirNameAreReadable() {
+        val doc = "application/vnd.google-apps.document"
+        assertTrue(PlaylistOrder.isReadable("12장. 결정 (수진)", doc))
+        assertTrue(PlaylistOrder.isReadable("v1.2 회의록", doc))
+        assertFalse(PlaylistOrder.isReadable("12장. 표", "application/vnd.google-apps.spreadsheet"))
+    }
 }
