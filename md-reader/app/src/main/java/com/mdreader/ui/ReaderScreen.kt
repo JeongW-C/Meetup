@@ -279,7 +279,7 @@ private fun HomeContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    ".md 또는 .txt 파일을 열면 음성으로 읽어 드립니다.",
+                    ".md·.txt 파일이나 Google 문서를 열면 음성으로 읽어 드립니다.",
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center,
                 )

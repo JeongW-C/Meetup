@@ -2,6 +2,7 @@ package com.mdreader
 
 import android.Manifest
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -37,7 +38,7 @@ class MainActivity : ComponentActivity() {
 
     private val vm: ReaderViewModel by viewModels()
 
-    private val openDocument = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+    private val openDocument = registerForActivityResult(OpenIncludingGoogleDocs()) { uri ->
         if (uri != null) vm.open(uri, remember = persistPermission(uri))
     }
 
@@ -53,7 +54,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Several files at once for the playlist; their text is copied, so no lasting permission is needed. */
-    private val addFiles = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+    private val addFiles = registerForActivityResult(OpenMultipleIncludingGoogleDocs()) { uris ->
         vm.addToPlaylist(uris)
     }
 
@@ -190,4 +191,19 @@ class MainActivity : ComponentActivity() {
         }
         vm.showMessage("음성 설정 화면을 열 수 없습니다. 기기 설정에서 '텍스트 음성 변환'을 찾아 주세요.")
     }
+}
+
+/*
+ * The standard pickers ask only for "openable" files, which hides Google Docs: they are virtual
+ * files with no bytes of their own, so the picker greys them out. Dropping that category lets them
+ * be picked; ReaderViewModel then reads them through Drive's text/plain conversion.
+ */
+private class OpenIncludingGoogleDocs : ActivityResultContracts.OpenDocument() {
+    override fun createIntent(context: Context, input: Array<String>): Intent =
+        super.createIntent(context, input).apply { removeCategory(Intent.CATEGORY_OPENABLE) }
+}
+
+private class OpenMultipleIncludingGoogleDocs : ActivityResultContracts.OpenMultipleDocuments() {
+    override fun createIntent(context: Context, input: Array<String>): Intent =
+        super.createIntent(context, input).apply { removeCategory(Intent.CATEGORY_OPENABLE) }
 }

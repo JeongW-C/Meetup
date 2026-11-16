@@ -14,6 +14,7 @@ object DocumentParser {
     private val MARKDOWN_EXTENSIONS = setOf("md", "markdown", "mdown", "mkd", "mkdn")
     private val BLANK_LINE = Regex("\\n\\s*\\n")
     private val WHITESPACE = Regex("\\s+")
+    private val EXTENSION = Regex("[A-Za-z0-9]{1,8}")
 
     fun parse(fileName: String, bytes: ByteArray): ReadableDocument =
         parseText(fileName, TextDecoder.decode(bytes))
@@ -39,9 +40,14 @@ object DocumentParser {
         return parts.map { it.replace(WHITESPACE, " ").trim() }.filter { it.isNotEmpty() }
     }
 
-    private fun titleOf(fileName: String): String {
-        val base = fileName.substringAfterLast('/')
+    /**
+     * The file name without its extension. Google Docs have no extension but often a dot in the name
+     * ("12장. 결정 (수진)"), so only a short run of letters/digits after the last dot counts as one.
+     */
+    fun titleOf(fileName: String): String {
+        val base = fileName.substringAfterLast('/').trim()
         val dot = base.lastIndexOf('.')
-        return (if (dot > 0) base.substring(0, dot) else base).ifBlank { "문서" }
+        val hasExtension = dot > 0 && EXTENSION.matches(base.substring(dot + 1))
+        return (if (hasExtension) base.substring(0, dot) else base).trim().ifBlank { "문서" }
     }
 }

@@ -88,6 +88,10 @@ class DocumentParserTest {
     fun titleFallsBackForNamesWithoutExtension() {
         assertEquals("README", DocumentParser.parseText("README", "x").title)
         assertEquals(".md", DocumentParser.parseText(".md", "x").title)
+        // Google Docs: no extension, but a dot in the name.
+        assertEquals("12장. 결정 (수진)", DocumentParser.parseText("12장. 결정 (수진)", "x").title)
+        assertEquals("메모.txt 사본", DocumentParser.titleOf("메모.txt 사본"))
+        assertEquals("노트", DocumentParser.titleOf("노트.md"))
     }
 
     @Test
