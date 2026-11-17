@@ -10,7 +10,7 @@ sealed class Source {
     data class Folder(val tree: Uri) : Source()
 
     fun save(prefs: SharedPreferences) {
-        val editor = prefs.edit().clear()
+        val editor = prefs.edit()
         when (this) {
             is Files -> editor.putString(KEY_TYPE, TYPE_FILES).putString(KEY_URIS, uris.joinToString("\n"))
             is Folder -> editor.putString(KEY_TYPE, TYPE_FOLDER).putString(KEY_URIS, tree.toString())

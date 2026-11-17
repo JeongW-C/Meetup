@@ -48,6 +48,11 @@ W=${size%x*}
 H=${size#*x}
 echo "화면 크기: ${W}x${H}"
 
+# 부팅 직후 화면 설정이 바뀌며 앱이 다시 만들어지는 일이 없도록 잠시 기다린다
+adb shell input keyevent KEYCODE_WAKEUP
+adb shell wm dismiss-keyguard || true
+sleep 10
+
 # 1) 여러 장을 일부러 뒤섞인 순서로 넘긴다
 adb logcat -c
 adb shell am start -W -a android.intent.action.SEND_MULTIPLE -t "image/*" \

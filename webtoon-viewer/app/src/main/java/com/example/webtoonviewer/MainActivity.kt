@@ -215,6 +215,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun openSource(source: Source, position: ImagePosition, quiet: Boolean = false) {
         loadJob?.cancel()
+        // 읽는 도중 화면이 다시 만들어져도(회전 등) 같은 것을 다시 열 수 있게 먼저 저장한다
+        source.save(prefs)
+        prefs.edit().putInt(KEY_POS_IMAGE, position.imageIndex).putFloat(KEY_POS_FRACTION, position.fraction).apply()
         loadJob = lifecycleScope.launch {
             progress.visibility = View.VISIBLE
             emptyHint.visibility = View.GONE
@@ -230,7 +233,6 @@ class MainActivity : AppCompatActivity() {
                 }
                 decoder.reset()
                 pages = loaded
-                source.save(prefs)
                 supportActionBar?.title = when (source) {
                     is Source.Folder -> folderName(source.tree)
                     is Source.Files -> if (loaded.size == 1) loaded.first().name else getString(R.string.n_images, loaded.size)
