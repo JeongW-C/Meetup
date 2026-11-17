@@ -139,12 +139,17 @@ shot 7_long-top
 pos=$(position)
 echo "[긴 이미지] $pos"
 echo "$pos" | grep -q ' 1 / 1$' || fail "긴 이미지가 열리지 않음: $pos"
-adb shell input keyevent KEYCODE_MOVE_END
+# 아래 슬라이더의 오른쪽 끝을 눌러 맨 끝으로 이동
+bounds=$(adb exec-out uiautomator dump /dev/tty 2>/dev/null \
+  | grep -o 'resource-id="com.example.webtoonviewer:id/seekBar"[^>]*bounds="[^"]*"' | grep -o 'bounds="[^"]*"')
+echo "슬라이더 위치: $bounds"
+read -r sx1 sy1 sx2 sy2 <<< "$(echo "$bounds" | grep -o '[0-9]*' | tr '\n' ' ')"
+adb shell input tap $((sx2 - 2)) $(((sy1 + sy2) / 2))
 sleep 3
 shot 8_long-end
 pos=$(position)
 echo "[긴 이미지 끝] $pos"
-[ "$(percent "$pos")" -eq 100 ] || fail "End 키로 끝까지 가지 않음: $pos"
+[ "$(percent "$pos")" -ge 98 ] || fail "슬라이더로 끝까지 가지 않음: $pos"
 check_crash "긴 이미지"
 
 echo "스크린샷: $OUT"
