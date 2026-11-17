@@ -288,7 +288,8 @@ class MainActivity : AppCompatActivity() {
     private fun currentPosition(): ImagePosition = adapter.layout?.positionOf(currentY()) ?: ImagePosition(0, 0f)
 
     private fun savePosition() {
-        if (pages.isEmpty() || adapter.layout == null) return
+        // 아직 화면에 그려지지 않았으면 위치를 알 수 없으니 저장된 값을 덮어쓰지 않는다
+        if (pages.isEmpty() || adapter.layout == null || layoutManager.childCount == 0) return
         val pos = currentPosition()
         prefs.edit().putInt(KEY_POS_IMAGE, pos.imageIndex).putFloat(KEY_POS_FRACTION, pos.fraction).apply()
     }
@@ -366,6 +367,9 @@ class MainActivity : AppCompatActivity() {
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
             )
             toolbar.updatePadding(left = bars.left, top = bars.top, right = bars.right)
+            // 메뉴 높이(상태 표시줄 + 툴바)만큼 여백. 제목 글자가 바뀌어도 높이가 흔들리지 않게 고정값을 쓴다
+            val topPad = bars.top + actionBarHeight()
+            if (list.paddingTop != topPad) list.updatePadding(top = topPad)
             bottomBar.updatePadding(
                 left = padLeft + bars.left,
                 right = padRight + bars.right,
@@ -374,19 +378,20 @@ class MainActivity : AppCompatActivity() {
             insets
         }
         list.clipToPadding = false
-        toolbar.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
-            val h = bottom - top
-            if (h > 0 && list.paddingTop != h) {
-                val y = currentY()
-                list.updatePadding(top = h)
-                if (adapter.layout != null) list.post { scrollToY(y) }
-            }
-        }
         if (Build.VERSION.SDK_INT >= 28) {
             window.attributes = window.attributes.apply {
                 layoutInDisplayCutoutMode =
                     android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
+        }
+    }
+
+    private fun actionBarHeight(): Int {
+        val value = android.util.TypedValue()
+        return if (theme.resolveAttribute(androidx.appcompat.R.attr.actionBarSize, value, true)) {
+            android.util.TypedValue.complexToDimensionPixelSize(value.data, resources.displayMetrics)
+        } else {
+            (56 * resources.displayMetrics.density).roundToInt()
         }
     }
 
