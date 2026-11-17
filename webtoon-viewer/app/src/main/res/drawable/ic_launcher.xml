@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 세로로 긴 만화 컷 모양의 간단한 아이콘 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path
+        android:fillColor="#00B87A"
+        android:pathData="M4,4h40v40h-40z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M15,8h18v10h-18z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M15,20h18v10h-18z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M15,32h18v8h-18z" />
+</vector>

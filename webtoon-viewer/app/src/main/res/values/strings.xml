@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">웹툰뷰어</string>
+    <string name="open_images">이미지 열기</string>
+    <string name="open_folder">폴더 열기</string>
+    <string name="empty_hint">긴 이미지를 휴대폰 가로 폭에 맞춰 위아래로 스크롤해서 봅니다.\n\n오른쪽 위 버튼으로 이미지(여러 장 가능)나\n이미지가 든 폴더를 열어 주세요.\n여러 장은 파일 이름 순서대로 이어 붙입니다.</string>
+    <string name="no_images">열 수 있는 이미지가 없습니다</string>
+    <string name="open_failed">이미지를 열지 못했습니다: %1$s</string>
+    <string name="tile_failed">이 부분을 그리지 못했습니다</string>
+    <string name="position_format">%1$d%%  ·  %2$d / %3$d</string>
+</resources>
