@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.WebtoonViewer" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <!-- 이미지가 상태 표시줄/내비게이션 바 뒤까지 채우도록 투명하게 -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

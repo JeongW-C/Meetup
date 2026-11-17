@@ -1,0 +1,110 @@
+# webtoon-viewer(긴 이미지 세로 스크롤 뷰어) 빌드, 테스트, 릴리스.
+# - 모든 푸시/PR: 단위 테스트, APK 빌드, 에뮬레이터 스모크 테스트(스크린샷 남김)
+# - main 푸시: GitHub Release(webtoon-viewer-v<versionName>)에 APK를 올린다.
+#   같은 버전이면 기존 릴리스의 APK를 새로 빌드한 것으로 바꾼다.
+name: webtoon-viewer
+
+on:
+  push:
+    paths:
+      - "webtoon-viewer/**"
+      - ".github/workflows/webtoon-viewer.yml"
+  pull_request:
+    paths:
+      - "webtoon-viewer/**"
+      - ".github/workflows/webtoon-viewer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: webtoon-viewer
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests and build
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest assembleDebug assembleRelease --no-daemon
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk dist/webtoon-viewer.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/webtoon-viewer-debug.apk
+
+      - id: version
+        run: echo "version=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: webtoon-viewer-apk
+          path: webtoon-viewer/dist/
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: webtoon-viewer-reports
+          path: webtoon-viewer/app/build/reports/
+
+  smoke-test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: webtoon-viewer-apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: bash webtoon-viewer/scripts/smoke-test.sh webtoon-viewer-debug.apk screenshots
+      # 아티팩트를 내려받을 수 없는 환경에서도 확인할 수 있게 스크린샷을 로그에 남긴다
+      - name: Print screenshots as base64
+        if: always()
+        run: |
+          for f in screenshots/*.png; do
+            echo "=== BEGIN $f"
+            base64 -w 0 "$f"; echo
+            echo "=== END $f"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: webtoon-viewer-screenshots
+          path: screenshots/
+
+  release:
+    needs: [build, smoke-test]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: webtoon-viewer-apk
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: webtoon-viewer-v${{ needs.build.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: 웹툰뷰어 v${{ needs.build.outputs.version }}
+          make_latest: false
+          files: webtoon-viewer.apk
+          body: |
+            세로로 긴 이미지(웹툰 등)를 휴대폰 가로 폭에 맞춰 위아래로 스크롤해서 보는 안드로이드 앱입니다.
+            휴대폰에서 아래 webtoon-viewer.apk 를 눌러 내려받고, 설치 중 "출처를 알 수 없는 앱" 허용을 켜면 설치됩니다.
