@@ -91,6 +91,7 @@ pos=$(position)
 echo "[스크롤 후] $pos"
 [ -n "$pos" ] || fail "탭해도 메뉴가 나타나지 않음"
 p1=$(percent "$pos")
+p1pos=$pos
 [ "$p1" -gt 0 ] || fail "스크롤이 되지 않음: $pos"
 check_crash "스크롤"
 
@@ -114,7 +115,9 @@ pos=$(position)
 echo "[가로 화면] $pos"
 [ -n "$pos" ] || fail "가로 화면에서 다시 열리지 않음"
 p3=$(percent "$pos")
-[ $((p3 - p1)) -le 5 ] && [ $((p1 - p3)) -le 5 ] || fail "가로 화면에서 위치가 바뀜: $p1% → $p3%"
+# 화면 높이가 달라지므로 %는 조금 달라질 수 있다. 보던 장이 같고 처음으로 돌아가지 않았는지만 본다
+echo "$pos" | grep -q "$(echo "$p1pos" | grep -o '[0-9]* / [0-9]*$')$" || fail "가로 화면에서 보던 장이 바뀜: $p1pos → $pos"
+[ $((p1 - p3)) -le 15 ] || fail "가로 화면에서 위치가 바뀜: $p1% → $p3%"
 adb shell input keyevent KEYCODE_VOLUME_DOWN
 sleep 2
 shot 6_landscape-scrolled
