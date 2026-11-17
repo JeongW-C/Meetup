@@ -17,6 +17,8 @@ data class PlaybackState(
     val documentKey: String? = null,
     /** Set while reading a playlist item: the service moves on to the next item when this one ends. */
     val playlistItemId: String? = null,
+    /** Where the document's text came from (a content URI), so it can be read again for the latest version. */
+    val sourceUri: String? = null,
     val index: Int = 0,
     val isPlaying: Boolean = false,
     val ttsReady: Boolean = false,
@@ -47,6 +49,7 @@ object PlaybackHub {
         key: String,
         startIndex: Int,
         playlistItemId: String? = null,
+        sourceUri: String? = null,
     ) {
         if (PlaybackService.isRunning) send(context, PlaybackService.ACTION_PAUSE)
         val last = (document.segments.size - 1).coerceAtLeast(0)
@@ -55,15 +58,33 @@ object PlaybackHub {
                 document = document,
                 documentKey = key,
                 playlistItemId = playlistItemId,
+                sourceUri = sourceUri,
                 index = startIndex.coerceIn(0, last),
                 isPlaying = false,
             )
         }
     }
 
+    /**
+     * Swaps in a newer version of the open document (identified by [key]) while keeping the reading
+     * position and whether it is playing. Returns false if another document was opened meanwhile.
+     */
+    fun replaceDocument(key: String, document: ReadableDocument): Boolean {
+        var replaced = false
+        update {
+            if (it.documentKey != key) {
+                it
+            } else {
+                replaced = true
+                it.copy(document = document, index = it.index.coerceIn(0, (document.segments.size - 1).coerceAtLeast(0)))
+            }
+        }
+        return replaced
+    }
+
     fun close(context: Context) {
         if (PlaybackService.isRunning) send(context, PlaybackService.ACTION_STOP)
-        update { it.copy(document = null, documentKey = null, playlistItemId = null, index = 0, isPlaying = false) }
+        update { it.copy(document = null, documentKey = null, playlistItemId = null, sourceUri = null, index = 0, isPlaying = false) }
     }
 
     fun play(context: Context) {

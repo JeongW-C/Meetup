@@ -133,6 +133,27 @@ for f in md-reader/samples/*; do
     fail=1
   fi
 
+  # 새로고침: 원본 파일 내용이 바뀐 뒤 '새로고침'을 누르면 새 내용이 보여야 한다 (Drive 파일과 같은 경로로 다시 읽음)
+  if [ "${name##*.}" != "pdf" ]; then
+    printf '# 바뀐 문서\n\n새로고침으로 바뀐 내용입니다.\n' > "/tmp/refresh_$name"
+    adb push "/tmp/refresh_$name" "/data/local/tmp/refresh_$name" > /dev/null
+    adb shell run-as $PKG cp "/data/local/tmp/refresh_$name" "files/$name"
+    if tap_desc "새로고침"; then
+      sleep 3
+      shot "${base}_4_refreshed"
+      if ui | grep -q "새로고침으로 바뀐 내용입니다"; then
+        echo "[$name] 새로고침 후 새 내용 확인"
+      else
+        echo "[$name] 새로고침 후 새 내용이 화면에 없음"
+        ui | grep -o 'text="[^"]\+"' | head -20
+        fail=1
+      fi
+    else
+      echo "[$name] 새로고침 버튼이 없음"
+      fail=1
+    fi
+  fi
+
   if adb logcat -d | grep -q "FATAL EXCEPTION"; then
     adb logcat -d | grep -A 30 "FATAL EXCEPTION"
     echo "앱이 $name 에서 비정상 종료됨"

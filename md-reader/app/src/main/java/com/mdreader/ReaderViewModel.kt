@@ -54,6 +54,9 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
     private val _loading = MutableStateFlow(false)
     val loading: StateFlow<Boolean> = _loading.asStateFlow()
 
+    private val _refreshing = MutableStateFlow(false)
+    val refreshing: StateFlow<Boolean> = _refreshing.asStateFlow()
+
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
 
@@ -78,7 +81,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val document = loadDocument(uri)
                 val key = uri.toString()
-                PlaybackHub.load(context, document, key, store.position(key))
+                PlaybackHub.load(context, document, key, store.position(key), sourceUri = key)
                 if (remember) store.addRecent(RecentFile(key, document.title))
             } catch (e: SecurityException) {
                 _message.value = "파일에 접근할 권한이 없습니다. 다시 선택해 주세요."
@@ -107,6 +110,42 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
         return document
     }
 
+    /**
+     * Reads the open document again from where it came from (e.g. Google Drive, which then fetches
+     * the latest version of a file or Google Doc), keeping the reading position. A playlist item's
+     * stored copy is updated too.
+     */
+    fun refresh() {
+        val state = playback.value
+        val source = state.sourceUri ?: return
+        val key = state.documentKey ?: return
+        val itemId = state.playlistItemId
+        val before = state.document
+        if (_refreshing.value) return
+        viewModelScope.launch {
+            _refreshing.value = true
+            val uri = Uri.parse(source)
+            try {
+                val document = loadDocument(uri)
+                if (itemId != null) withContext(Dispatchers.IO) { Playlist.replace(context, itemId, document) }
+                if (PlaybackHub.replaceDocument(key, document)) {
+                    _message.value = if (document == before) "이미 최신 내용입니다." else "최신 내용으로 새로고침했습니다."
+                }
+            } catch (e: SecurityException) {
+                // Files picked in Drive's own picker can only be read again until the app is closed.
+                _message.value = if (uri.authority in DRIVE_AUTHORITIES) {
+                    "Google Drive 파일에 다시 접근할 수 없습니다. 'Google Drive에서 열기'로 파일을 다시 열어 주세요."
+                } else {
+                    "원본 파일에 다시 접근할 수 없습니다. 파일을 다시 열어 주세요."
+                }
+            } catch (e: IOException) {
+                _message.value = describe(uri, e)
+            } finally {
+                _refreshing.value = false
+            }
+        }
+    }
+
     private fun describe(uri: Uri, e: IOException): String = when {
         uri.authority in DRIVE_AUTHORITIES && e !is UnreadableFileException ->
             "Google Drive에서 파일을 받지 못했습니다. 인터넷 연결을 확인하거나, Drive 앱에서 " +
@@ -128,7 +167,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
                 for (uri in uris) {
                     try {
                         val document = loadDocument(uri)
-                        withContext(Dispatchers.IO) { Playlist.add(context, document) }
+                        withContext(Dispatchers.IO) { Playlist.add(context, document, source = uri.toString()) }
                         added++
                     } catch (e: SecurityException) {
                         lastProblem = "파일에 접근할 권한이 없습니다."
@@ -211,7 +250,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         viewModelScope.launch {
-            val item = withContext(Dispatchers.IO) { Playlist.add(context, document) }
+            val item = withContext(Dispatchers.IO) { Playlist.add(context, document, source = state.sourceUri) }
             // From now on this document continues into the rest of the playlist.
             PlaybackHub.update {
                 if (it.document === document) {
@@ -234,7 +273,7 @@ class ReaderViewModel(app: Application) : AndroidViewModel(app) {
             }
             val key = Playlist.documentKey(item.id)
             val start = if (fromStart) 0 else store.position(key)
-            PlaybackHub.load(context, document, key, start, playlistItemId = item.id)
+            PlaybackHub.load(context, document, key, start, playlistItemId = item.id, sourceUri = item.source)
             if (autoPlay) PlaybackHub.play(context)
         }
     }

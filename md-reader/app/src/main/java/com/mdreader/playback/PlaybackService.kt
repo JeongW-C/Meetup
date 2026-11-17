@@ -331,7 +331,13 @@ class PlaybackService : Service(), TextToSpeech.OnInitListener {
             }
             Log.i(TAG, "playlist next ${document.title}")
             PlaybackHub.update {
-                it.copy(document = document, documentKey = Playlist.documentKey(id), playlistItemId = id, index = 0)
+                it.copy(
+                    document = document,
+                    documentKey = Playlist.documentKey(id),
+                    playlistItemId = id,
+                    sourceUri = Playlist.source(id),
+                    index = 0,
+                )
             }
             speakCurrent()
         }
