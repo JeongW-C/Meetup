@@ -183,8 +183,14 @@ class MainActivity : AppCompatActivity() {
         else -> super.onOptionsItemSelected(item)
     }
 
-    /** 볼륨 키·키보드로 한 화면씩 스크롤 */
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+    /** 볼륨 키·키보드로 한 화면씩 스크롤. 메뉴 버튼 등에 포커스가 있어도 먼저 받도록 dispatchKeyEvent 에서 처리한다. */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_DOWN && handleScrollKey(event.keyCode)) return true
+        if (event.action == KeyEvent.ACTION_UP && pages.isNotEmpty() && event.keyCode in SCROLL_KEYS) return true
+        return super.dispatchKeyEvent(event)
+    }
+
+    private fun handleScrollKey(keyCode: Int): Boolean {
         if (pages.isNotEmpty()) {
             val step = (list.height * SCROLL_STEP).roundToInt()
             when (keyCode) {
@@ -196,7 +202,7 @@ class MainActivity : AppCompatActivity() {
                 KeyEvent.KEYCODE_MOVE_END -> { scrollToY(Int.MAX_VALUE); return true }
             }
         }
-        return super.onKeyDown(keyCode, event)
+        return false
     }
 
     private fun persistPermission(uri: Uri) {
@@ -227,8 +233,9 @@ class MainActivity : AppCompatActivity() {
                 source.save(prefs)
                 supportActionBar?.title = when (source) {
                     is Source.Folder -> folderName(source.tree)
-                    is Source.Files -> loaded.first().name
+                    is Source.Files -> if (loaded.size == 1) loaded.first().name else getString(R.string.n_images, loaded.size)
                 }
+                supportActionBar?.subtitle = null
                 list.doOnLayout { applyLayout(position) }
                 setBarsVisible(true)
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -295,7 +302,7 @@ class MainActivity : AppCompatActivity() {
         // 화면 가운데에 걸친 이미지를 "몇 번째 장"으로 보여준다
         val image = layout.positionOf(y + viewportHeight() / 2).imageIndex
         positionText.text = getString(R.string.position_format, (ratio * 100).roundToInt(), image + 1, pages.size)
-        if (pages.size > 1) supportActionBar?.subtitle = pages[image].name
+        supportActionBar?.subtitle = if (pages.size > 1) pages[image].name else null
     }
 
     private fun setupSeekBar() {
@@ -401,6 +408,10 @@ class MainActivity : AppCompatActivity() {
         private const val KEY_POS_IMAGE = "posImage"
         private const val KEY_POS_FRACTION = "posFraction"
         private const val SCROLL_STEP = 0.85f
-        private const val PAD_LIMIT = 10_000
+        private val SCROLL_KEYS = setOf(
+            KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_PAGE_DOWN, KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_PAGE_UP,
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_MOVE_HOME, KeyEvent.KEYCODE_MOVE_END,
+        )
     }
 }

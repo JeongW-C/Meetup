@@ -60,6 +60,8 @@ echo "[여러 장 열기] $pos"
 [ -n "$pos" ] || fail "이미지가 열리지 않음"
 echo "$pos" | grep -q '/ 3$' || fail "3장이 아님: $pos"
 echo "$pos" | grep -q ' 1 / 3$' || fail "첫 장부터 시작하지 않음: $pos"
+adb exec-out uiautomator dump /dev/tty 2>/dev/null | grep -q 'text="이미지 3장"' \
+  || fail "제목이 '이미지 3장' 이 아님"
 adb exec-out uiautomator dump /dev/tty 2>/dev/null | grep -q 'text="ep_1.png"' \
   || fail "이름 순서로 정렬되지 않음 (첫 장이 ep_1.png 여야 함)"
 check_crash "여러 장 열기"
@@ -132,6 +134,9 @@ echo "$pos" | grep -q ' 1 / 1$' || fail "긴 이미지가 열리지 않음: $pos
 adb shell input keyevent KEYCODE_MOVE_END
 sleep 3
 shot 8_long-end
+pos=$(position)
+echo "[긴 이미지 끝] $pos"
+[ "$(percent "$pos")" -eq 100 ] || fail "End 키로 끝까지 가지 않음: $pos"
 check_crash "긴 이미지"
 
 echo "스크린샷: $OUT"
