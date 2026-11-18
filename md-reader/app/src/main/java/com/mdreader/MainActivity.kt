@@ -53,14 +53,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Several files at once for the playlist; their text is copied, so no lasting permission is needed. */
+    /**
+     * Several files at once for the playlist. Their text is copied, so they play without access;
+     * access is kept where possible so the items can be refreshed from the originals later.
+     */
     private val addFiles = registerForActivityResult(OpenMultipleIncludingGoogleDocs()) { uris ->
+        uris.forEach(::persistPermission)
         vm.addToPlaylist(uris)
     }
 
-    /** A whole folder for the playlist; access only has to last while its files are copied. */
+    /** A whole folder for the playlist; access to it is kept so its files can be refreshed later. */
     private val addFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        if (uri != null) vm.addFolderToPlaylist(uri)
+        if (uri != null) {
+            persistPermission(uri)
+            vm.addFolderToPlaylist(uri)
+        }
     }
 
     private val addFromDrive = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->

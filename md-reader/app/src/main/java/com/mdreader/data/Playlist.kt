@@ -11,7 +11,8 @@ import org.json.JSONObject
 import java.io.File
 import java.util.UUID
 
-data class PlaylistItem(val id: String, val title: String, val segmentCount: Int)
+/** [source] is the URI the text was copied from, kept so the item can be refreshed from it later. */
+data class PlaylistItem(val id: String, val title: String, val segmentCount: Int, val source: String? = null)
 
 /**
  * Files queued to be read one after another. Each file's text is copied into the app's own storage
@@ -45,13 +46,32 @@ object Playlist {
         }
     }
 
-    fun add(context: Context, document: ReadableDocument): PlaylistItem = synchronized(lock) {
+    fun add(context: Context, document: ReadableDocument, source: String? = null): PlaylistItem = synchronized(lock) {
         ensureLoaded(context)
-        val item = PlaylistItem(UUID.randomUUID().toString(), document.title, document.segments.size)
+        val item = PlaylistItem(UUID.randomUUID().toString(), document.title, document.segments.size, source)
         textFile(context, item.id).writeText(PlaylistOrder.encodeSegments(document.segments))
         save(context, _items.value + item)
         item
     }
+
+    /** Replaces the stored text of [id] with a newer version; false if the item was removed meanwhile. */
+    fun replace(context: Context, id: String, document: ReadableDocument): Boolean = synchronized(lock) {
+        ensureLoaded(context)
+        val item = _items.value.firstOrNull { it.id == id } ?: return false
+        val temp = File(dir(context), "$id.txt.tmp")
+        temp.writeText(PlaylistOrder.encodeSegments(document.segments))
+        val target = textFile(context, id)
+        if (!temp.renameTo(target)) {
+            target.writeText(temp.readText())
+            temp.delete()
+        }
+        val updated = item.copy(title = document.title, segmentCount = document.segments.size)
+        save(context, _items.value.map { if (it.id == id) updated else it })
+        true
+    }
+
+    /** The URI item [id] was copied from, if known. */
+    fun source(id: String): String? = _items.value.firstOrNull { it.id == id }?.source
 
     fun remove(context: Context, id: String) = synchronized(lock) {
         ensureLoaded(context)
@@ -84,7 +104,11 @@ object Playlist {
 
     private fun save(context: Context, list: List<PlaylistItem>) {
         val json = JSONArray()
-        list.forEach { json.put(JSONObject().put("id", it.id).put("title", it.title).put("count", it.segmentCount)) }
+        for (item in list) {
+            val entry = JSONObject().put("id", item.id).put("title", item.title).put("count", item.segmentCount)
+            item.source?.let { entry.put("src", it) }
+            json.put(entry)
+        }
         val target = File(dir(context), INDEX)
         val temp = File(dir(context), "$INDEX.tmp")
         temp.writeText(json.toString())
@@ -102,7 +126,12 @@ object Playlist {
             val json = JSONArray(file.readText())
             (0 until json.length()).map { i ->
                 val o = json.getJSONObject(i)
-                PlaylistItem(o.getString("id"), o.optString("title", "문서"), o.optInt("count", 0))
+                PlaylistItem(
+                    o.getString("id"),
+                    o.optString("title", "문서"),
+                    o.optInt("count", 0),
+                    o.optString("src").takeIf { it.isNotEmpty() },
+                )
             }
         }.getOrDefault(emptyList())
     }

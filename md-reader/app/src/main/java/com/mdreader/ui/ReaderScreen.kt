@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Stop
@@ -104,6 +105,7 @@ fun ReaderScreen(
     val prefs by vm.prefs.collectAsStateWithLifecycle()
     val recent by vm.recentFiles.collectAsStateWithLifecycle()
     val loading by vm.loading.collectAsStateWithLifecycle()
+    val refreshing by vm.refreshing.collectAsStateWithLifecycle()
     val message by vm.message.collectAsStateWithLifecycle()
 
     val snackbar = remember { SnackbarHostState() }
@@ -141,6 +143,16 @@ fun ReaderScreen(
                     }
                 },
                 actions = {
+                    // Files with a source (Google Drive, device files) can be read again for their latest version.
+                    if (document != null && state.sourceUri != null) {
+                        IconButton(onClick = vm::refresh, enabled = !refreshing) {
+                            if (refreshing) {
+                                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                            } else {
+                                Icon(Icons.Filled.Refresh, contentDescription = "새로고침")
+                            }
+                        }
+                    }
                     if (document != null && state.playlistItemId == null) {
                         IconButton(onClick = vm::addCurrentToPlaylist) {
                             Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = "재생목록에 추가")
@@ -151,8 +163,11 @@ fun ReaderScreen(
                             Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = "재생목록")
                         }
                     }
-                    IconButton(onClick = onOpenFile) {
-                        Icon(Icons.Filled.FolderOpen, contentDescription = "파일 열기")
+                    // While reading, the back arrow leads to the open buttons; this keeps room for the title.
+                    if (document == null) {
+                        IconButton(onClick = onOpenFile) {
+                            Icon(Icons.Filled.FolderOpen, contentDescription = "파일 열기")
+                        }
                     }
                     IconButton(onClick = { showSettings = true }) {
                         Icon(Icons.Filled.Tune, contentDescription = "읽기 설정")
